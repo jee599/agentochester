@@ -8,10 +8,10 @@ interface MatchResult {
   candidates?: Array<{ name: string; score: number }>;
 }
 
-const MATCH_ICON: Record<string, string> = {
-  exact: "\u2705",
-  fuzzy: "\uD83D\uDD0D",
-  none: "\u26A0\uFE0F",
+const MATCH_STYLE: Record<string, { icon: string; color: string }> = {
+  exact: { icon: "[exact]", color: "text-green-400" },
+  fuzzy: { icon: "[fuzzy]", color: "text-blue-400" },
+  none: { icon: "[none]", color: "text-yellow-400" },
 };
 
 const SOURCE_LABEL: Record<string, string> = {
@@ -82,7 +82,9 @@ export default function AgentMatchPanel() {
               key={i}
               className="flex items-center gap-3 text-sm py-2 border-b border-gray-800 last:border-0"
             >
-              <span>{MATCH_ICON[result.matchType]}</span>
+              <span className={MATCH_STYLE[result.matchType]?.color ?? "text-gray-400"}>
+                {MATCH_STYLE[result.matchType]?.icon ?? result.matchType}
+              </span>
               {result.agent ? (
                 <>
                   <span className="font-medium">{result.agent.name}</span>
