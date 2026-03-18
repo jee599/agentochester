@@ -169,80 +169,9 @@ export default function AgentLibrary() {
                         <div className="text-slate-500 font-mono animate-pulse">loading...</div>
                       ) : detail ? (
                         <>
-                          {/* Identity */}
-                          {detail.identity.personality && (
-                            <div>
-                              <div className="text-[10px] uppercase tracking-widest text-violet-400 mb-1">Identity</div>
-                              <div className="text-slate-300 leading-relaxed">{detail.identity.personality}</div>
-                              {detail.identity.communication && (
-                                <div className="text-slate-400 mt-1"><span className="text-slate-500">Communication:</span> {detail.identity.communication}</div>
-                              )}
-                              {detail.identity.thinking && (
-                                <div className="text-slate-400 mt-1"><span className="text-slate-500">Thinking:</span> {detail.identity.thinking}</div>
-                              )}
-                            </div>
-                          )}
-
-                          {/* Rules */}
-                          {(detail.critical_rules.must.length > 0 || detail.critical_rules.must_not.length > 0) && (
-                            <div>
-                              <div className="text-[10px] uppercase tracking-widest text-violet-400 mb-1">Rules</div>
-                              {detail.critical_rules.must.length > 0 && (
-                                <div className="mb-1.5">
-                                  <span className="text-emerald-400 text-[10px] font-mono">MUST</span>
-                                  <ul className="mt-0.5 space-y-0.5">
-                                    {detail.critical_rules.must.map((r, i) => (
-                                      <li key={i} className="text-slate-400 pl-2 border-l border-emerald-500/20">{r}</li>
-                                    ))}
-                                  </ul>
-                                </div>
-                              )}
-                              {detail.critical_rules.must_not.length > 0 && (
-                                <div>
-                                  <span className="text-rose-400 text-[10px] font-mono">MUST NOT</span>
-                                  <ul className="mt-0.5 space-y-0.5">
-                                    {detail.critical_rules.must_not.map((r, i) => (
-                                      <li key={i} className="text-slate-400 pl-2 border-l border-rose-500/20">{r}</li>
-                                    ))}
-                                  </ul>
-                                </div>
-                              )}
-                            </div>
-                          )}
-
-                          {/* Deliverables */}
-                          {detail.deliverables.length > 0 && (
-                            <div>
-                              <div className="text-[10px] uppercase tracking-widest text-violet-400 mb-1">Deliverables</div>
-                              <ul className="space-y-0.5">
-                                {detail.deliverables.map((d, i) => (
-                                  <li key={i} className="text-slate-400 pl-2 border-l border-violet-500/20">{d}</li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-
-                          {/* Success Metrics */}
-                          {detail.success_metrics.length > 0 && (
-                            <div>
-                              <div className="text-[10px] uppercase tracking-widest text-violet-400 mb-1">Success Metrics</div>
-                              <ul className="space-y-0.5">
-                                {detail.success_metrics.map((m, i) => (
-                                  <li key={i} className="text-slate-400 pl-2 border-l border-cyan-500/20">{m}</li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-
-                          {/* Tags */}
-                          {agent.tags.length > 0 && (
-                            <div className="flex flex-wrap gap-1 pt-1">
-                              {agent.tags.slice(0, 12).map((tag) => (
-                                <span key={tag} className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-500">
-                                  {tag}
-                                </span>
-                              ))}
-                            </div>
+                          <div className="text-slate-300 leading-relaxed">{detail.identity.personality.split('\n')[0]}</div>
+                          {detail.description && (
+                            <div className="text-slate-500">{detail.description}</div>
                           )}
                         </>
                       ) : (
