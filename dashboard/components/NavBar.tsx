@@ -21,7 +21,7 @@ export default function NavBar() {
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-2">
             <span className="text-violet-400">
-              <Logo size={20} />
+              <Logo size={30} />
             </span>
             <span className="text-sm font-bold text-white tracking-tight">{t("app.title")}</span>
             <span className="text-[10px] font-mono text-slate-500">{t("app.version")}</span>
