@@ -46,7 +46,7 @@ describe('AgentManager 3-tier matching', () => {
     expect(list.length).toBeGreaterThan(0);
     const builtin = list.find(g => g.division === 'builtin');
     expect(builtin).toBeDefined();
-    expect(builtin!.agents.length).toBe(8);
+    expect(builtin!.agents.length).toBe(9);
   });
 
   it('createAgent throws for unimplemented role', async () => {

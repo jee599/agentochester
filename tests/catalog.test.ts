@@ -17,7 +17,7 @@ describe('AgentCatalog', () => {
 
   it('builtin 에이전트 8개가 로드된다', () => {
     const builtins = catalog.listAll().filter(e => e.source.type === 'builtin');
-    expect(builtins).toHaveLength(8);
+    expect(builtins).toHaveLength(9);
   });
 
   it('findByRole: korean_tech_writer → builtin', () => {
@@ -39,7 +39,7 @@ describe('AgentCatalog', () => {
   it('listByDivision: builtin has 8', () => {
     const grouped = catalog.listByDivision();
     expect(grouped['builtin']).toBeDefined();
-    expect(grouped['builtin'].length).toBe(8);
+    expect(grouped['builtin'].length).toBe(9);
   });
 
   // Conditional external tests

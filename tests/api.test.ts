@@ -18,7 +18,7 @@ describe('createAgentsHandler', () => {
   it('listAgents returns divisions array with builtin having 8 agents', () => {
     const builtin = response.divisions.find((d) => d.name === 'builtin');
     expect(builtin).toBeDefined();
-    expect(builtin!.agents.length).toBe(8);
+    expect(builtin!.agents.length).toBe(9);
   });
 
   it('each division has a label', () => {

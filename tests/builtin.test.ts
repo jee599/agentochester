@@ -9,7 +9,7 @@ describe('builtin YAML agents', () => {
   const files = fs.readdirSync(BUILTIN_DIR).filter(f => f.endsWith('.yaml'));
 
   it('8개 YAML 파일이 존재한다', () => {
-    expect(files).toHaveLength(8);
+    expect(files).toHaveLength(9);
   });
 
   for (const file of files) {
