@@ -28,16 +28,16 @@ interface ComposeResult {
   };
 }
 
-const MATCH_STYLE: Record<string, { label: string; bg: string; text: string }> = {
-  exact: { label: "exact", bg: "bg-green-900/50", text: "text-green-300" },
-  fuzzy: { label: "fuzzy", bg: "bg-blue-900/50", text: "text-blue-300" },
-  none: { label: "none", bg: "bg-yellow-900/50", text: "text-yellow-300" },
+const MATCH_DOT: Record<string, string> = {
+  exact: "bg-emerald-500",
+  fuzzy: "bg-blue-400",
+  none: "bg-amber-500",
 };
 
 const SOURCE_STYLE: Record<string, { label: string; color: string }> = {
   external: { label: "agency-agents", color: "text-blue-400" },
-  builtin: { label: "builtin", color: "text-green-400" },
-  generated: { label: "generated", color: "text-yellow-400" },
+  builtin: { label: "builtin", color: "text-emerald-400" },
+  generated: { label: "generated", color: "text-amber-400" },
 };
 
 interface ExecutionResult {
@@ -62,12 +62,14 @@ export default function ComposePanel() {
   const [loading, setLoading] = useState(false);
   const [executing, setExecuting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [expandedResults, setExpandedResults] = useState<Set<string>>(new Set());
 
   const handleCompose = async () => {
     if (!prompt.trim()) return;
     setLoading(true);
     setError(null);
     setResult(null);
+    setExecResult(null);
     try {
       const res = await fetch("/api/compose", {
         method: "POST",
@@ -86,6 +88,7 @@ export default function ComposePanel() {
 
   const [liveOutputs, setLiveOutputs] = useState<Record<string, string>>({});
   const [taskStatuses, setTaskStatuses] = useState<Record<string, string>>({});
+  const [taskTimers, setTaskTimers] = useState<Record<string, number>>({});
 
   const handleExecute = async () => {
     if (!prompt.trim()) return;
@@ -94,6 +97,8 @@ export default function ComposePanel() {
     setExecResult(null);
     setLiveOutputs({});
     setTaskStatuses({});
+    setTaskTimers({});
+    setExpandedResults(new Set());
 
     try {
       const res = await fetch("/api/execute", {
@@ -128,6 +133,7 @@ export default function ComposePanel() {
 
             if (eventType === "task_start") {
               setTaskStatuses((prev) => ({ ...prev, [data.taskId]: data.status }));
+              setTaskTimers((prev) => ({ ...prev, [data.taskId]: Date.now() }));
             } else if (eventType === "task_output") {
               setLiveOutputs((prev) => ({
                 ...prev,
@@ -169,17 +175,26 @@ export default function ComposePanel() {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
       e.preventDefault();
       handleCompose();
     }
   };
 
+  const toggleResult = (taskId: string) => {
+    setExpandedResults((prev) => {
+      const next = new Set(prev);
+      if (next.has(taskId)) next.delete(taskId);
+      else next.add(taskId);
+      return next;
+    });
+  };
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Input */}
-      <div className="border border-gray-800 rounded-lg p-4">
-        <label className="block text-sm text-gray-400 mb-2">
+      <div>
+        <label className="block text-xs text-stone-500 mb-1.5 font-mono">
           {t("compose.label")}
         </label>
         <textarea
@@ -188,14 +203,14 @@ export default function ComposePanel() {
           onKeyDown={handleKeyDown}
           placeholder={t("compose.placeholder")}
           rows={3}
-          className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-blue-500 resize-none"
+          className="w-full bg-stone-900/50 border border-stone-800 rounded px-3 py-2.5 text-sm font-mono text-stone-200 placeholder:text-stone-700 focus:outline-none focus:border-stone-600 resize-none leading-relaxed"
         />
-        <div className="flex items-center justify-between mt-3">
-          <span className="text-xs text-gray-600">{t("compose.hint")}</span>
+        <div className="flex items-center justify-between mt-2">
+          <span className="text-[11px] text-stone-700 font-mono">{t("compose.hint")} · ⌘ Enter</span>
           <button
             onClick={handleCompose}
             disabled={loading || !prompt.trim()}
-            className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-6 py-2 rounded-lg text-sm font-medium transition-colors"
+            className="bg-amber-500 hover:bg-amber-400 disabled:opacity-40 disabled:hover:bg-amber-500 px-5 py-1.5 rounded text-xs font-semibold text-stone-950 transition-colors cursor-pointer"
           >
             {loading ? t("compose.composing") : t("compose.button")}
           </button>
@@ -203,106 +218,80 @@ export default function ComposePanel() {
       </div>
 
       {error && (
-        <div className="text-red-400 text-sm bg-red-900/20 border border-red-900 rounded-lg p-3">
+        <div className="text-red-400 text-xs bg-red-950/30 border border-red-900/50 rounded px-3 py-2 font-mono">
           {error}
         </div>
       )}
 
-      {/* Result */}
+      {/* Decomposed Tasks */}
       {result && (
-        <div className="space-y-4">
-          {/* Summary */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4 text-sm">
-              <span className="text-gray-400">
-                {result.summary.totalTasks} {t("compose.tasks_decomposed")}
-              </span>
-              <span className="text-green-400">
-                {result.summary.matched} {t("compose.matched")}
-              </span>
+        <div className="space-y-3">
+          {/* Summary bar */}
+          <div className="flex items-center justify-between border-t border-stone-800/50 pt-3">
+            <div className="font-mono text-xs text-stone-500 flex items-center gap-3">
+              <span className="text-stone-300">{result.summary.totalTasks}</span>
+              <span>{t("compose.tasks_decomposed")}</span>
+              <span className="text-stone-700">·</span>
+              <span className="text-emerald-500">{result.summary.matched}</span>
+              <span>{t("compose.matched")}</span>
               {result.summary.unmatched > 0 && (
-                <span className="text-yellow-400">
-                  {result.summary.unmatched} {t("compose.unmatched")}
-                </span>
+                <>
+                  <span className="text-stone-700">·</span>
+                  <span className="text-amber-500">{result.summary.unmatched}</span>
+                  <span>{t("compose.unmatched")}</span>
+                </>
               )}
             </div>
             <button
               onClick={handleExecute}
               disabled={executing || result.summary.matched === 0}
-              className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 px-6 py-2 rounded-lg text-sm font-medium transition-colors"
+              className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:hover:bg-emerald-600 px-4 py-1.5 rounded text-xs font-semibold text-white transition-colors cursor-pointer"
             >
-              {executing ? t("compose.executing") : t("compose.execute")}
+              {executing
+                ? t("compose.executing")
+                : `${t("compose.execute")} ${result.summary.matched}`}
             </button>
           </div>
 
-          {/* Task Cards */}
-          <div className="space-y-3">
+          {/* Task rows */}
+          <div className="divide-y divide-stone-800/30">
             {result.tasks.map((tr) => {
-              const matchStyle = MATCH_STYLE[tr.match.matchType];
               const sourceStyle = tr.match.agent
-                ? SOURCE_STYLE[tr.match.agent.source.type] ?? { label: tr.match.agent.source.type, color: "text-gray-400" }
+                ? SOURCE_STYLE[tr.match.agent.source.type] ?? { label: tr.match.agent.source.type, color: "text-stone-400" }
                 : null;
 
               return (
-                <div
-                  key={tr.task.id}
-                  className="border border-gray-800 rounded-lg p-4 hover:border-gray-700 transition-colors"
-                >
-                  {/* Header */}
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-gray-600 font-mono">{tr.task.id}</span>
-                      <span className="text-sm font-medium text-gray-200">
-                        {t(`role.${tr.task.role}`) !== `role.${tr.task.role}` ? t(`role.${tr.task.role}`) : tr.task.role.replace(/_/g, " ")}
-                      </span>
-                    </div>
-                    <span className={`text-xs px-2 py-0.5 rounded ${matchStyle.bg} ${matchStyle.text}`}>
-                      {matchStyle.label}
+                <div key={tr.task.id} className="py-2.5 group">
+                  {/* Primary row */}
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="font-mono text-stone-600 w-14 shrink-0">{tr.task.id}</span>
+                    <span className="font-mono text-white w-48 shrink-0 truncate">
+                      {t(`role.${tr.task.role}`) !== `role.${tr.task.role}` ? t(`role.${tr.task.role}`) : tr.task.role.replace(/_/g, " ")}
+                    </span>
+                    {tr.match.agent ? (
+                      <>
+                        <span className="text-stone-600">→</span>
+                        <span className="text-stone-300 truncate">{tr.match.agent.name}</span>
+                        <span className={`${sourceStyle?.color} text-[10px]`}>[{sourceStyle?.label}]</span>
+                      </>
+                    ) : (
+                      <span className="text-amber-500/70">{t("compose.no_match")}</span>
+                    )}
+                    <span className="ml-auto flex items-center gap-1.5 shrink-0">
+                      <span className={`w-1.5 h-1.5 rounded-full ${MATCH_DOT[tr.match.matchType]}`} />
+                      <span className="text-stone-600 text-[10px] font-mono">{tr.match.matchType}</span>
                     </span>
                   </div>
-
-                  {/* Role description */}
-                  {t(`role.${tr.task.role}.desc`) !== `role.${tr.task.role}.desc` && (
-                    <p className="text-xs text-gray-600 mb-2">{t(`role.${tr.task.role}.desc`)}</p>
-                  )}
-
-                  {/* Action */}
-                  <p className="text-sm text-gray-400 mb-2">{tr.task.action}</p>
-
-                  {/* Match type explanation */}
-                  <p className="text-xs text-gray-700 mb-3">{t(`match.${tr.match.matchType}`)}</p>
-
-                  {/* Matched Agent */}
-                  {tr.match.agent ? (
-                    <div className="flex items-center gap-2 text-sm">
-                      <span className="text-gray-500">→</span>
-                      <span className="font-medium text-white">{tr.match.agent.name}</span>
-                      <span className={`text-xs ${sourceStyle?.color}`}>[{sourceStyle?.label}]</span>
-                    </div>
-                  ) : (
-                    <div className="text-sm text-yellow-500">
-                      {t("compose.no_match")}
-                      {tr.match.candidates && tr.match.candidates.length > 0 && (
-                        <span className="text-gray-500 ml-2">
-                          candidates: {tr.match.candidates.slice(0, 3).map((c) => c.name).join(", ")}
-                        </span>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Dependencies */}
-                  {tr.task.depends_on.length > 0 && (
-                    <div className="mt-2 text-xs text-gray-600">
-                      depends on: {tr.task.depends_on.join(", ")}
-                    </div>
-                  )}
-
-                  {/* File Scope */}
-                  {tr.task.file_scope.length > 0 && (
-                    <div className="mt-1 text-xs text-gray-700 font-mono">
-                      {tr.task.file_scope.join(", ")}
-                    </div>
-                  )}
+                  {/* Secondary row */}
+                  <div className="flex items-center gap-2 text-[11px] mt-0.5 pl-14">
+                    <span className="text-stone-600 truncate">{tr.task.action}</span>
+                    {tr.task.file_scope.length > 0 && (
+                      <span className="font-mono text-stone-700 shrink-0">{tr.task.file_scope.join(", ")}</span>
+                    )}
+                    {tr.task.depends_on.length > 0 && (
+                      <span className="text-stone-700 font-mono shrink-0">← {tr.task.depends_on.join(", ")}</span>
+                    )}
+                  </div>
                 </div>
               );
             })}
@@ -312,23 +301,33 @@ export default function ComposePanel() {
 
       {/* Live Execution Progress */}
       {executing && Object.keys(taskStatuses).length > 0 && (
-        <div className="space-y-3 border-t border-gray-800 pt-4">
-          <div className="flex items-center gap-2 text-sm">
-            <span className="animate-pulse text-blue-400">●</span>
-            <span className="font-medium text-white">Executing...</span>
+        <div className="space-y-2 border-t border-stone-800/50 pt-3">
+          <div className="flex items-center gap-2 text-xs font-mono">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="text-stone-400">{t("exec.executing")}</span>
           </div>
           {Object.entries(taskStatuses).map(([taskId, status]) => (
-            <div key={taskId} className="border border-gray-800 rounded-lg p-3">
-              <div className="flex items-center gap-2 mb-2">
-                <span className={`text-xs px-2 py-0.5 rounded ${
-                  status === "running" ? "bg-blue-900/50 text-blue-300 animate-pulse" :
-                  status === "success" ? "bg-green-900/50 text-green-300" :
-                  "bg-red-900/50 text-red-300"
+            <div key={taskId} className="py-1.5">
+              <div className="flex items-center gap-2 text-xs">
+                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                  status === "running" ? "bg-emerald-500 animate-pulse" :
+                  status === "success" ? "bg-emerald-500" :
+                  "bg-red-500"
+                }`} />
+                <span className="font-mono text-stone-300">{taskId}</span>
+                <span className={`text-[10px] font-mono ${
+                  status === "running" ? "text-stone-500" :
+                  status === "success" ? "text-emerald-500" :
+                  "text-red-400"
                 }`}>{status}</span>
-                <span className="text-sm text-gray-300">{taskId}</span>
+                {status === "running" && taskTimers[taskId] && (
+                  <span className="text-[10px] font-mono text-stone-600 ml-auto">
+                    {((Date.now() - taskTimers[taskId]) / 1000).toFixed(0)}s
+                  </span>
+                )}
               </div>
               {liveOutputs[taskId] && (
-                <pre className="text-xs text-gray-400 bg-gray-900 rounded p-2 max-h-40 overflow-y-auto whitespace-pre-wrap">
+                <pre className="text-[11px] font-mono text-stone-500 bg-stone-900 rounded px-2 py-1.5 mt-1 max-h-32 overflow-y-auto whitespace-pre-wrap leading-tight">
                   {liveOutputs[taskId]}
                 </pre>
               )}
@@ -339,56 +338,61 @@ export default function ComposePanel() {
 
       {/* Execution Result */}
       {execResult && (
-        <div className="space-y-4">
-          <div className="flex items-center gap-4 text-sm border-t border-gray-800 pt-4">
-            <span className="font-medium text-white">Execution Result</span>
-            <span className="text-gray-400">
-              {(execResult.totalDurationMs / 1000).toFixed(1)}s
-            </span>
-            <span className="text-green-400">{execResult.summary.success} success</span>
+        <div className="space-y-2 border-t border-stone-800/50 pt-3">
+          {/* Summary */}
+          <div className="font-mono text-xs text-stone-500 flex items-center gap-3">
+            <span className="text-stone-300">{t("exec.title")}</span>
+            <span className="text-stone-700">·</span>
+            <span>{(execResult.totalDurationMs / 1000).toFixed(1)}s</span>
+            <span className="text-stone-700">·</span>
+            <span className="text-emerald-500">{execResult.summary.success} {t("exec.success")}</span>
             {execResult.summary.error > 0 && (
-              <span className="text-red-400">{execResult.summary.error} error</span>
+              <>
+                <span className="text-stone-700">·</span>
+                <span className="text-red-400">{execResult.summary.error} {t("exec.error")}</span>
+              </>
             )}
             {execResult.summary.skipped > 0 && (
-              <span className="text-yellow-400">{execResult.summary.skipped} skipped</span>
+              <>
+                <span className="text-stone-700">·</span>
+                <span className="text-amber-400">{execResult.summary.skipped} {t("exec.skipped")}</span>
+              </>
             )}
           </div>
 
-          <div className="space-y-3">
+          {/* Result rows */}
+          <div className="divide-y divide-stone-800/30">
             {execResult.results.map((r) => (
-              <div
-                key={r.taskId}
-                className={`border rounded-lg p-4 ${
-                  r.status === "success"
-                    ? "border-green-900/50"
-                    : r.status === "error"
-                    ? "border-red-900/50"
-                    : "border-yellow-900/50"
-                }`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <span className={`text-xs px-2 py-0.5 rounded ${
-                      r.status === "success" ? "bg-green-900/50 text-green-300" :
-                      r.status === "error" ? "bg-red-900/50 text-red-300" :
-                      "bg-yellow-900/50 text-yellow-300"
-                    }`}>
-                      {r.status}
-                    </span>
-                    <span className="text-sm font-medium">{r.agentName}</span>
-                    <span className="text-xs text-gray-600">{r.role}</span>
-                  </div>
-                  <span className="text-xs text-gray-600">
+              <div key={r.taskId} className="py-2">
+                <button
+                  onClick={() => toggleResult(r.taskId)}
+                  className="w-full flex items-center gap-2 text-xs text-left cursor-pointer"
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                    r.status === "success" ? "bg-emerald-500" :
+                    r.status === "error" ? "bg-red-500" :
+                    "bg-amber-500"
+                  }`} />
+                  <span className="font-mono text-stone-300">{r.agentName}</span>
+                  <span className="font-mono text-stone-600">{r.role}</span>
+                  <span className="ml-auto font-mono text-stone-600 text-[10px]">
                     {(r.durationMs / 1000).toFixed(1)}s
                   </span>
-                </div>
-                {r.output && (
-                  <pre className="text-xs text-gray-400 bg-gray-900 rounded p-3 mt-2 overflow-x-auto max-h-60 overflow-y-auto whitespace-pre-wrap">
-                    {r.output}
-                  </pre>
-                )}
-                {r.error && (
-                  <div className="text-xs text-red-400 mt-2">{r.error}</div>
+                  <span className="text-stone-700 text-[10px]">
+                    {expandedResults.has(r.taskId) ? "▼" : "▶"}
+                  </span>
+                </button>
+                {expandedResults.has(r.taskId) && (
+                  <>
+                    {r.output && (
+                      <pre className="text-[11px] font-mono text-stone-500 bg-stone-900 rounded px-2 py-1.5 mt-1.5 max-h-60 overflow-y-auto whitespace-pre-wrap leading-tight">
+                        {r.output}
+                      </pre>
+                    )}
+                    {r.error && (
+                      <div className="text-[11px] font-mono text-red-400 mt-1">{r.error}</div>
+                    )}
+                  </>
                 )}
               </div>
             ))}

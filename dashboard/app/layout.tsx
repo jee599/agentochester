@@ -27,12 +27,12 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-950 text-gray-100 min-h-screen`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-stone-950 text-stone-300 font-[family-name:var(--font-geist-sans)] min-h-screen`}
         suppressHydrationWarning
       >
         <LocaleProvider>
           <NavBar />
-          <main className="p-6">{children}</main>
+          <main className="max-w-5xl mx-auto px-6 py-6">{children}</main>
         </LocaleProvider>
       </body>
     </html>

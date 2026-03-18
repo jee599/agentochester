@@ -8,7 +8,9 @@ export default function AgentsPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold mb-6">{t("agents.title")}</h1>
+      <div className="mb-6">
+        <h1 className="text-xl font-semibold text-white tracking-tight">{t("agents.title")}</h1>
+      </div>
       <AgentLibrary />
     </div>
   );

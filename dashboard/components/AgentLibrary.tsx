@@ -22,10 +22,16 @@ interface AgentsResponse {
   total: number;
 }
 
-const SOURCE_BADGE: Record<string, { label: string; color: string }> = {
-  external: { label: "agency-agents", color: "bg-blue-900 text-blue-300" },
-  builtin: { label: "builtin", color: "bg-green-900 text-green-300" },
-  generated: { label: "generated", color: "bg-yellow-900 text-yellow-300" },
+const SOURCE_COLOR: Record<string, string> = {
+  external: "text-blue-400",
+  builtin: "text-emerald-400",
+  generated: "text-amber-400",
+};
+
+const SOURCE_LABEL: Record<string, string> = {
+  external: "agency-agents",
+  builtin: "builtin",
+  generated: "generated",
 };
 
 export default function AgentLibrary() {
@@ -45,8 +51,8 @@ export default function AgentLibrary() {
       .catch((err) => setError(err.message));
   }, []);
 
-  if (error) return <div className="text-red-400">{t("agents.load_error")}: {error}</div>;
-  if (!data) return <div className="text-gray-500">{t("agents.loading")}</div>;
+  if (error) return <div className="text-red-400 text-xs font-mono">{t("agents.load_error")}: {error}</div>;
+  if (!data) return <div className="text-stone-600 text-xs font-mono">{t("agents.loading")}</div>;
 
   const filteredDivisions = data.divisions
     .filter((d) => !selectedDivision || d.name === selectedDivision)
@@ -61,53 +67,60 @@ export default function AgentLibrary() {
     }))
     .filter((d) => d.agents.length > 0);
 
+  const totalFiltered = filteredDivisions.reduce((sum, d) => sum + d.agents.length, 0);
+
   return (
     <div>
-      <div className="flex items-center gap-4 mb-6">
+      {/* Search + filter row */}
+      <div className="flex items-center gap-3 mb-4">
         <input
           type="text"
           placeholder={t("agents.search")}
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          className="bg-gray-900 border border-gray-700 rounded px-3 py-2 text-sm w-64 focus:outline-none focus:border-gray-500"
+          className="bg-stone-900/50 border border-stone-800 rounded px-2.5 py-1.5 text-xs font-mono text-stone-300 placeholder:text-stone-700 w-56 focus:outline-none focus:border-stone-600"
         />
         <select
           value={selectedDivision || ""}
           onChange={(e) => setSelectedDivision(e.target.value || null)}
-          className="bg-gray-900 border border-gray-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-gray-500"
+          className="bg-stone-900/50 border border-stone-800 rounded px-2.5 py-1.5 text-xs text-stone-400 focus:outline-none focus:border-stone-600 cursor-pointer"
         >
-          <option value="">{t("agents.all_divisions")}</option>
+          <option value="" className="bg-stone-900">{t("agents.all_divisions")}</option>
           {data.divisions.map((d) => (
-            <option key={d.name} value={d.name}>
+            <option key={d.name} value={d.name} className="bg-stone-900">
               {d.label} ({d.agents.length})
             </option>
           ))}
         </select>
-        <span className="text-sm text-gray-500">{t("agents.total")}: {data.total}</span>
+        <span className="text-[11px] font-mono text-stone-600 ml-auto">
+          {totalFiltered} {t("agents.total")} · {filteredDivisions.length} divisions
+        </span>
       </div>
 
+      {/* Divisions */}
       {filteredDivisions.map((division) => (
-        <div key={division.name} className="mb-8">
-          <h2 className="text-lg font-semibold mb-3 text-gray-300">
-            {division.label}
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div key={division.name} className="mb-5">
+          <div className="flex items-center gap-2 mb-1.5 border-b border-stone-800/30 pb-1.5">
+            <h2 className="text-[10px] font-semibold uppercase tracking-widest text-stone-500">
+              {division.label}
+            </h2>
+            <span className="text-[10px] font-mono text-stone-700">{division.agents.length}</span>
+          </div>
+
+          {/* Agent table rows */}
+          <div className="divide-y divide-stone-800/20">
             {division.agents.map((agent) => {
-              const badge = SOURCE_BADGE[agent.source] ?? { label: agent.source, color: "bg-gray-800 text-gray-400" };
+              const srcColor = SOURCE_COLOR[agent.source] ?? "text-stone-400";
+              const srcLabel = SOURCE_LABEL[agent.source] ?? agent.source;
               return (
                 <div
                   key={`${division.name}-${agent.role}`}
-                  className="border border-gray-800 rounded-lg p-4 hover:border-gray-600 transition-colors"
+                  className="flex items-center gap-3 py-1.5 text-xs hover:bg-stone-900/50 px-1 -mx-1 rounded transition-colors group"
                 >
-                  <div className="flex items-start justify-between mb-2">
-                    <h3 className="font-medium text-sm">{agent.name}</h3>
-                    <span
-                      className={`text-xs px-2 py-0.5 rounded ${badge.color}`}
-                    >
-                      {badge.label}
-                    </span>
-                  </div>
-                  <p className="text-xs text-gray-500">{agent.role}</p>
+                  <span className="text-stone-200 w-52 truncate shrink-0">{agent.name}</span>
+                  <span className="font-mono text-stone-600 w-44 truncate shrink-0">{agent.role}</span>
+                  <span className={`${srcColor} text-[10px] w-24 shrink-0`}>{srcLabel}</span>
+                  <span className="text-stone-700 text-[10px] truncate">{division.label}</span>
                 </div>
               );
             })}

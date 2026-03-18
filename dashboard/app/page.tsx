@@ -7,9 +7,11 @@ export default function Home() {
   const { t } = useLocale();
 
   return (
-    <div className="max-w-3xl">
-      <h1 className="text-2xl font-bold mb-2">{t("app.title")}</h1>
-      <p className="text-sm text-gray-500 mb-6">{t("app.subtitle")}</p>
+    <div>
+      <div className="mb-6">
+        <h1 className="text-xl font-semibold text-white tracking-tight">{t("app.title")}</h1>
+        <p className="text-sm text-stone-500 mt-0.5">{t("app.subtitle")}</p>
+      </div>
       <ComposePanel />
     </div>
   );
