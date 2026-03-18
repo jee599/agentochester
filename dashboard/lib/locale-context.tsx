@@ -6,7 +6,7 @@ import { type Locale, t as translate } from "./i18n";
 interface LocaleContextType {
   locale: Locale;
   setLocale: (locale: Locale) => void;
-  t: (key: string) => string;
+  t: (key: string, params?: Record<string, string | number>) => string;
 }
 
 const LocaleContext = createContext<LocaleContextType>({
@@ -18,7 +18,7 @@ const LocaleContext = createContext<LocaleContextType>({
 export function LocaleProvider({ children }: { children: ReactNode }) {
   const [locale, setLocale] = useState<Locale>("en");
 
-  const t = (key: string) => translate(locale, key);
+  const t = (key: string, params?: Record<string, string | number>) => translate(locale, key, params);
 
   return (
     <LocaleContext.Provider value={{ locale, setLocale, t }}>

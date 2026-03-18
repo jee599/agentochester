@@ -10,11 +10,11 @@ export default function LanguageSelector() {
     <select
       value={locale}
       onChange={(e) => setLocale(e.target.value as typeof locale)}
-      className="bg-transparent border border-stone-800 rounded px-2 py-1 text-[11px] font-mono text-stone-400 focus:outline-none focus:border-stone-600 cursor-pointer"
+      className="bg-transparent border border-slate-700/50 rounded px-2 py-1 text-[11px] font-mono text-slate-300 focus:outline-none focus:border-violet-500/50 cursor-pointer"
     >
       {LOCALES.map((l) => (
-        <option key={l.code} value={l.code} className="bg-stone-900">
-          {l.flag}
+        <option key={l.code} value={l.code} className="bg-slate-900">
+          {l.flag} {l.code.toUpperCase()}
         </option>
       ))}
     </select>

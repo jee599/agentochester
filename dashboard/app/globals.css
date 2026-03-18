@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 :root {
-  --accent: oklch(0.75 0.15 75);
+  --accent: oklch(0.65 0.25 290);
 }
 
 @theme inline {
@@ -14,5 +14,5 @@ body {
 }
 
 ::selection {
-  background: oklch(0.75 0.15 75 / 0.3);
+  background: oklch(0.65 0.25 290 / 0.3);
 }

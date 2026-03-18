@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SpoonCompose Dashboard",
+  title: "AgentClaw Dashboard",
   description: "Agent Teams Dashboard",
 };
 
@@ -27,7 +27,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-stone-950 text-stone-300 font-[family-name:var(--font-geist-sans)] min-h-screen`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-slate-950 text-slate-100 font-[family-name:var(--font-geist-sans)] min-h-screen`}
         suppressHydrationWarning
       >
         <LocaleProvider>

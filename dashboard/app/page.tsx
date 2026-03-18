@@ -10,7 +10,7 @@ export default function Home() {
     <div>
       <div className="mb-6">
         <h1 className="text-xl font-semibold text-white tracking-tight">{t("app.title")}</h1>
-        <p className="text-sm text-stone-500 mt-0.5">{t("app.subtitle")}</p>
+        <p className="text-sm text-slate-400 mt-0.5">{t("app.subtitle")}</p>
       </div>
       <ComposePanel />
     </div>
