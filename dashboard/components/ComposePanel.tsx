@@ -82,20 +82,83 @@ export default function ComposePanel() {
     }
   };
 
+  const [liveOutputs, setLiveOutputs] = useState<Record<string, string>>({});
+  const [taskStatuses, setTaskStatuses] = useState<Record<string, string>>({});
+
   const handleExecute = async () => {
     if (!prompt.trim()) return;
     setExecuting(true);
     setError(null);
     setExecResult(null);
+    setLiveOutputs({});
+    setTaskStatuses({});
+
     try {
       const res = await fetch("/api/execute", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt }),
       });
+
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      setExecResult(data);
+      if (!res.body) throw new Error("No response body");
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      const results: ExecutionResult["results"] = [];
+      let totalDurationMs = 0;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        let eventType = "";
+        for (const line of lines) {
+          if (line.startsWith("event: ")) {
+            eventType = line.slice(7);
+          } else if (line.startsWith("data: ")) {
+            const data = JSON.parse(line.slice(6));
+
+            if (eventType === "task_start") {
+              setTaskStatuses((prev) => ({ ...prev, [data.taskId]: data.status }));
+            } else if (eventType === "task_output") {
+              setLiveOutputs((prev) => ({
+                ...prev,
+                [data.taskId]: (prev[data.taskId] || "") + data.chunk,
+              }));
+            } else if (eventType === "task_done") {
+              setTaskStatuses((prev) => ({ ...prev, [data.taskId]: data.status }));
+              results.push({
+                taskId: data.taskId,
+                role: data.role || "",
+                agentName: data.agentName || "",
+                status: data.status,
+                output: data.output || "",
+                error: data.error,
+                durationMs: data.durationMs || 0,
+              });
+            } else if (eventType === "done") {
+              totalDurationMs = data.totalDurationMs;
+            }
+          }
+        }
+      }
+
+      setExecResult({
+        results,
+        totalDurationMs,
+        summary: {
+          total: results.length,
+          success: results.filter((r) => r.status === "success").length,
+          error: results.filter((r) => r.status === "error").length,
+          skipped: 0,
+        },
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Execution failed");
     } finally {
@@ -232,6 +295,33 @@ export default function ComposePanel() {
               );
             })}
           </div>
+        </div>
+      )}
+
+      {/* Live Execution Progress */}
+      {executing && Object.keys(taskStatuses).length > 0 && (
+        <div className="space-y-3 border-t border-gray-800 pt-4">
+          <div className="flex items-center gap-2 text-sm">
+            <span className="animate-pulse text-blue-400">●</span>
+            <span className="font-medium text-white">Executing...</span>
+          </div>
+          {Object.entries(taskStatuses).map(([taskId, status]) => (
+            <div key={taskId} className="border border-gray-800 rounded-lg p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <span className={`text-xs px-2 py-0.5 rounded ${
+                  status === "running" ? "bg-blue-900/50 text-blue-300 animate-pulse" :
+                  status === "success" ? "bg-green-900/50 text-green-300" :
+                  "bg-red-900/50 text-red-300"
+                }`}>{status}</span>
+                <span className="text-sm text-gray-300">{taskId}</span>
+              </div>
+              {liveOutputs[taskId] && (
+                <pre className="text-xs text-gray-400 bg-gray-900 rounded p-2 max-h-40 overflow-y-auto whitespace-pre-wrap">
+                  {liveOutputs[taskId]}
+                </pre>
+              )}
+            </div>
+          ))}
         </div>
       )}
 
