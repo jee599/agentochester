@@ -87,8 +87,10 @@ export class AgentManager {
     // From task.file_scope (infer domain)
     if (task.file_scope) {
       for (const scope of task.file_scope) {
-        const parts = scope.replace(/\/$/, '').split('/').filter((p) => p.length > 1);
-        tags.push(...parts);
+        if (scope.includes('src/') || scope.includes('.ts') || scope.includes('.tsx')) tags.push('engineering', '개발');
+        if (scope.includes('docs/') || scope.includes('.md')) tags.push('planning', '기획');
+        if (scope.includes('test') || scope.includes('spec')) tags.push('testing', '테스트');
+        if (scope.includes('design') || scope.includes('.figma')) tags.push('design', '디자인');
       }
     }
 

@@ -33,13 +33,7 @@ export class AgentCatalog {
           filePath: (agent.source as { filePath: string }).filePath,
         });
       }
-      console.log(`[Catalog] Loaded ${externalAgents.length} external agents`);
-    } else {
-      console.warn(`[Catalog] External directory not found: ${this.externalDir}`);
     }
-
-    console.log(`[Catalog] Loaded ${builtinEntries.length} builtin agents`);
-    console.log(`[Catalog] Total: ${this.entries.length} agents`);
   }
 
   findByRole(role: string): AgentDefinition | null {
@@ -73,34 +67,15 @@ export class AgentCatalog {
       let score = 0;
 
       for (const q of normalizedQuery) {
-        // exact tag match +2
-        if (entry.tags.some((t) => t.toLowerCase() === q)) {
+        const hasExactTag = entry.tags.some((t) => t.toLowerCase() === q);
+        if (hasExactTag) {
           score += 2;
-        }
-        // role contains +3
-        if (entry.role.toLowerCase().includes(q)) {
-          score += 3;
-        }
-        // name contains +2
-        if (entry.name.toLowerCase().includes(q)) {
-          score += 2;
-        }
-        // description contains +1
-        if (entry.description.toLowerCase().includes(q)) {
+        } else if (entry.tags.some((t) => t.toLowerCase().includes(q) || q.includes(t.toLowerCase()))) {
           score += 1;
         }
-        // partial tag match +1
-        if (
-          score === 0 ||
-          !entry.tags.some((t) => t.toLowerCase() === q)
-        ) {
-          if (entry.tags.some((t) => t.toLowerCase().includes(q) || q.includes(t.toLowerCase()))) {
-            // Only add partial if no exact match already counted
-            if (!entry.tags.some((t) => t.toLowerCase() === q)) {
-              score += 1;
-            }
-          }
-        }
+        if (entry.role.toLowerCase().includes(q)) score += 3;
+        if (entry.name.toLowerCase().includes(q)) score += 2;
+        if (entry.description.toLowerCase().includes(q)) score += 1;
       }
 
       // External source bonus
@@ -180,7 +155,7 @@ export class AgentCatalog {
           filePath,
         });
       } catch {
-        console.warn(`[Catalog] Failed to parse builtin YAML: ${filePath}`);
+        // skip malformed YAML
       }
     }
 

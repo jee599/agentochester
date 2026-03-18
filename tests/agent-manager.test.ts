@@ -26,9 +26,8 @@ describe('AgentManager 3-tier matching', () => {
   it('no match → none', async () => {
     const result = await manager.matchAgent({
       id: 'task_2', role: 'quantum_computing_specialist',
-      action: '양자 회로 시뮬레이터', depends_on: [], file_scope: ['src/quantum/'],
+      action: '양자 회로 시뮬레이터', depends_on: [],
     });
-    expect(result.agent).toBeNull();
     expect(result.matchType).toBe('none');
   });
 

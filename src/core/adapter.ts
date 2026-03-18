@@ -137,41 +137,58 @@ export function extractIdentity(sections: Section[]): AgentIdentity {
 }
 
 export function extractCriticalRules(sections: Section[]): AgentCriticalRules {
-  const section = findSection(sections, ['Critical Rules']);
+  const section = findSection(sections, ['Critical Rules', 'Rules', 'Guidelines', 'Constraints']);
   if (!section) {
     return { must: [], must_not: [] };
   }
 
-  // Get all sections that come after Critical Rules
+  // Collect subsections under Critical Rules
   const allSections = sections;
   const critIdx = allSections.indexOf(section);
-
-  // Collect content from Critical Rules section and any ### subsections under it
-  let fullContent = section.content;
+  const subsections: Section[] = [];
   for (let i = critIdx + 1; i < allSections.length; i++) {
     if (allSections[i].level <= section.level) break;
-    fullContent += '\n### ' + allSections[i].heading + '\n' + allSections[i].content;
+    subsections.push(allSections[i]);
   }
 
+  // Strategy 1: Use ALWAYS/NEVER subsection headers if present
+  const alwaysSection = subsections.find((s) => /^(ALWAYS|Must|Do|Required)$/i.test(s.heading));
+  const neverSection = subsections.find((s) => /^(NEVER|Must Not|Don't|Forbidden)$/i.test(s.heading));
+
+  if (alwaysSection || neverSection) {
+    const must = alwaysSection ? extractBulletItems(alwaysSection.content) : [];
+    const must_not = neverSection ? extractBulletItems(neverSection.content) : [];
+    return { must, must_not };
+  }
+
+  // Strategy 2: Fallback — regex on full content for ### ALWAYS / ### NEVER blocks
+  let fullContent = section.content;
+  for (const sub of subsections) {
+    fullContent += '\n### ' + sub.heading + '\n' + sub.content;
+  }
+
+  const alwaysMatch = fullContent.match(/###?\s*(?:ALWAYS|Must|Do|Required)[\s\S]*?(?=###?\s*(?:NEVER|Must Not|Don't|Forbidden)|$)/i);
+  const neverMatch = fullContent.match(/###?\s*(?:NEVER|Must Not|Don't|Forbidden)[\s\S]*/i);
+
+  if (alwaysMatch || neverMatch) {
+    const must = alwaysMatch ? extractBulletItems(alwaysMatch[0]) : [];
+    const must_not = neverMatch ? extractBulletItems(neverMatch[0]) : [];
+    return { must, must_not };
+  }
+
+  // Strategy 3: No ALWAYS/NEVER structure — classify by keyword prefix
+  const allBullets = extractBulletItems(fullContent);
   const must: string[] = [];
-  const mustNot: string[] = [];
-
-  const lines = fullContent.split('\n');
-  for (const line of lines) {
-    const bulletMatch = line.match(/^\s*[-*]\s+(.+)$/);
-    if (!bulletMatch) continue;
-    const item = bulletMatch[1].trim();
-    if (item.length <= 5) continue;
-
+  const must_not: string[] = [];
+  for (const item of allBullets) {
     const lower = item.toLowerCase();
     if (lower.startsWith('never ') || lower.startsWith('don\'t ') || lower.startsWith('do not ') || lower.startsWith('avoid ')) {
-      mustNot.push(item);
+      must_not.push(item);
     } else {
       must.push(item);
     }
   }
-
-  return { must, must_not: mustNot };
+  return { must, must_not };
 }
 
 export function extractDeliverables(sections: Section[]): string[] {
@@ -345,26 +362,41 @@ export function parseAgencyAgentMd(filePath: string, division: string): AgentDef
 const EXCLUDED_DIRS = new Set(['scripts', 'integrations', 'examples', '.github', '.git']);
 const EXCLUDED_FILES = new Set(['README.md', 'CONTRIBUTING.md', 'LICENSE', 'CHANGELOG.md']);
 
+function findMdFilesRecursive(dirPath: string): string[] {
+  const results: string[] = [];
+
+  function walk(dir: string) {
+    const entries = readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(fullPath);
+      } else if (entry.name.endsWith('.md') && !EXCLUDED_FILES.has(entry.name)) {
+        results.push(fullPath);
+      }
+    }
+  }
+
+  walk(dirPath);
+  return results;
+}
+
 export function parseAllAgencyAgents(basePath: string): AgentDefinition[] {
   const agents: AgentDefinition[] = [];
 
   if (!existsSync(basePath)) return agents;
 
-  const entries = readdirSync(basePath);
+  const entries = readdirSync(basePath, { withFileTypes: true });
 
   for (const entry of entries) {
-    if (EXCLUDED_DIRS.has(entry)) continue;
+    if (!entry.isDirectory()) continue;
+    if (EXCLUDED_DIRS.has(entry.name)) continue;
 
-    const dirPath = join(basePath, entry);
-    if (!statSync(dirPath).isDirectory()) continue;
+    const divPath = join(basePath, entry.name);
+    const mdFiles = findMdFilesRecursive(divPath);
 
-    const files = readdirSync(dirPath);
-    for (const file of files) {
-      if (!file.endsWith('.md')) continue;
-      if (EXCLUDED_FILES.has(file)) continue;
-
-      const filePath = join(dirPath, file);
-      const agent = parseAgencyAgentMd(filePath, entry);
+    for (const mdFile of mdFiles) {
+      const agent = parseAgencyAgentMd(mdFile, entry.name);
       if (agent && (agent.confidence ?? 0) >= 0.3) {
         agents.push(agent);
       }
