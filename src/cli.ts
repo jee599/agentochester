@@ -18,10 +18,6 @@ const EXTERNAL_DIR = path.join(PKG_ROOT, 'agents', 'external', 'agency-agents');
 const AGENTCROW_START = '<!-- AgentCrow Start -->';
 const AGENTCROW_END = '<!-- AgentCrow End -->';
 
-function getTemplatePath(lang: string): string {
-  return path.join(PKG_ROOT, 'templates', `CLAUDE.md.${lang}.template`);
-}
-
 function printUsage(): void {
   console.log(`
 \x1b[35m🐦 agentcrow\x1b[0m — Auto Agent Router for Claude Code
@@ -114,38 +110,46 @@ async function cmdInit(lang: string = 'en', maxAgents: number = 5): Promise<void
   const allAgents = catalog.listAll();
   let agentFiles = 0;
   for (const entry of allAgents) {
-    const agentMdPath = path.join(agentsDir, `${entry.role}.md`);
+    const safeRole = entry.role.replace(/[^a-z0-9_]/g, '_');
+    const agentMdPath = path.join(agentsDir, `${safeRole}.md`);
     if (fs.existsSync(agentMdPath)) continue;
 
-    if (entry.source.type === 'builtin') {
-      // Parse YAML → generate agent .md
-      const yamlPath = (entry.source as { filePath: string }).filePath;
-      if (fs.existsSync(yamlPath)) {
-        const yaml = await import('yaml');
-        const parsed = yaml.parse(fs.readFileSync(yamlPath, 'utf-8'));
-        const md = [
-          `# ${parsed.name}`,
-          `> ${parsed.description || ''}`,
-          '',
-          `**Role:** ${parsed.role}`,
-          '',
-          parsed.identity?.personality ? `## Identity\n${parsed.identity.personality.trim()}` : '',
-          parsed.critical_rules?.must?.length ? `## MUST\n${parsed.critical_rules.must.map((r: string) => `- ${r}`).join('\n')}` : '',
-          parsed.critical_rules?.must_not?.length ? `## MUST NOT\n${parsed.critical_rules.must_not.map((r: string) => `- ${r}`).join('\n')}` : '',
-        ].filter(Boolean).join('\n\n');
-        fs.writeFileSync(agentMdPath, md, 'utf-8');
-        agentFiles++;
-      }
-    } else if (entry.source.type === 'external') {
-      // Symlink or copy external .md
-      const srcPath = (entry.source as { filePath: string }).filePath;
-      if (fs.existsSync(srcPath)) {
-        try {
-          fs.symlinkSync(srcPath, agentMdPath);
-        } catch {
-          fs.copyFileSync(srcPath, agentMdPath);
+    try {
+      if (entry.source.type === 'builtin') {
+        // Parse YAML → generate agent .md
+        const yamlPath = (entry.source as { filePath: string }).filePath;
+        if (fs.existsSync(yamlPath)) {
+          const yaml = await import('yaml');
+          const parsed = yaml.parse(fs.readFileSync(yamlPath, 'utf-8'));
+          const md = [
+            `# ${parsed.name}`,
+            `> ${parsed.description || ''}`,
+            '',
+            `**Role:** ${parsed.role}`,
+            '',
+            parsed.identity?.personality ? `## Identity\n${parsed.identity.personality.trim()}` : '',
+            parsed.critical_rules?.must?.length ? `## MUST\n${parsed.critical_rules.must.map((r: string) => `- ${r}`).join('\n')}` : '',
+            parsed.critical_rules?.must_not?.length ? `## MUST NOT\n${parsed.critical_rules.must_not.map((r: string) => `- ${r}`).join('\n')}` : '',
+          ].filter(Boolean).join('\n\n');
+          fs.writeFileSync(agentMdPath, md, 'utf-8');
+          agentFiles++;
         }
-        agentFiles++;
+      } else if (entry.source.type === 'external') {
+        // Copy external .md
+        const srcPath = (entry.source as { filePath: string }).filePath;
+        if (fs.existsSync(srcPath)) {
+          fs.copyFileSync(srcPath, agentMdPath);
+          agentFiles++;
+        }
+      }
+    } catch (err: unknown) {
+      const code = (err as NodeJS.ErrnoException).code;
+      if (code === 'EACCES') {
+        console.error(`  ✗ Permission denied writing ${safeRole}.md. Try running with sudo or check .claude/ permissions.`);
+      } else if (code === 'ENOSPC') {
+        console.error(`  ✗ Disk full. Free some space and try again.`);
+      } else {
+        console.error(`  ✗ Failed to write ${safeRole}.md: ${(err as Error).message}`);
       }
     }
   }
@@ -187,26 +191,38 @@ ${lang === 'ko'
 ${AGENTCROW_END}`;
 
   // 5. Merge
-  if (fs.existsSync(claudeMdPath)) {
-    const existing = fs.readFileSync(claudeMdPath, 'utf-8');
-    const startIdx = existing.indexOf(AGENTCROW_START);
-    const endIdx = existing.indexOf(AGENTCROW_END);
+  try {
+    if (fs.existsSync(claudeMdPath)) {
+      const existing = fs.readFileSync(claudeMdPath, 'utf-8');
+      const startIdx = existing.indexOf(AGENTCROW_START);
+      const endIdx = existing.indexOf(AGENTCROW_END);
 
-    if (startIdx !== -1 && endIdx !== -1) {
-      const before = existing.slice(0, startIdx);
-      const after = existing.slice(endIdx + AGENTCROW_END.length);
-      fs.writeFileSync(claudeMdPath, before + agentCrowSection + after, 'utf-8');
-      console.log(`  Updated AgentCrow section in CLAUDE.md`);
-    } else if (existing.includes('AgentCrow')) {
-      fs.writeFileSync(claudeMdPath, agentCrowSection, 'utf-8');
-      console.log(`  Replaced CLAUDE.md`);
+      if (startIdx !== -1 && endIdx !== -1) {
+        const before = existing.slice(0, startIdx);
+        const after = existing.slice(endIdx + AGENTCROW_END.length);
+        fs.writeFileSync(claudeMdPath, before + agentCrowSection + after, 'utf-8');
+        console.log(`  Updated AgentCrow section in CLAUDE.md`);
+      } else if (existing.includes('AgentCrow')) {
+        fs.writeFileSync(claudeMdPath, agentCrowSection, 'utf-8');
+        console.log(`  Replaced CLAUDE.md`);
+      } else {
+        fs.writeFileSync(claudeMdPath, existing + '\n\n---\n\n' + agentCrowSection, 'utf-8');
+        console.log(`  Merged AgentCrow into existing CLAUDE.md`);
+      }
     } else {
-      fs.writeFileSync(claudeMdPath, existing + '\n\n---\n\n' + agentCrowSection, 'utf-8');
-      console.log(`  Merged AgentCrow into existing CLAUDE.md`);
+      fs.writeFileSync(claudeMdPath, agentCrowSection, 'utf-8');
+      console.log(`  Generated CLAUDE.md`);
     }
-  } else {
-    fs.writeFileSync(claudeMdPath, agentCrowSection, 'utf-8');
-    console.log(`  Generated CLAUDE.md`);
+  } catch (err: unknown) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === 'EACCES') {
+      console.error('  ✗ Permission denied writing CLAUDE.md. Try running with sudo or check .claude/ permissions.');
+    } else if (code === 'ENOSPC') {
+      console.error('  ✗ Disk full. Free some space and try again.');
+    } else {
+      console.error(`  ✗ Failed to write CLAUDE.md: ${(err as Error).message}`);
+    }
+    process.exit(1);
   }
 
   // 6. Install hook
@@ -326,6 +342,8 @@ Output ONLY a JSON array: [{"role":"role_name","action":"specific task"}]
 
   return new Promise((resolve, reject) => {
     const env = { ...process.env };
+    // Remove ANTHROPIC_API_KEY to force Claude CLI to use OAuth auth
+    // (invalid API keys cause errors even when OAuth is available)
     delete env.ANTHROPIC_API_KEY;
 
     const proc = spawn('claude', ['-p'], {
@@ -368,6 +386,8 @@ function cmdOff(): void {
   const cwd = process.cwd();
   const claudeMd = path.join(cwd, '.claude', 'CLAUDE.md');
   const backupMd = path.join(cwd, '.claude', 'CLAUDE.md.agentcrow-backup');
+  const agentsDir = path.join(cwd, '.claude', 'agents');
+  const agentsBackup = path.join(cwd, '.claude', 'agents.agentcrow-backup');
 
   if (!fs.existsSync(claudeMd)) {
     console.log('\x1b[33m⚠ AgentCrow is already off (no .claude/CLAUDE.md found)\x1b[0m');
@@ -382,8 +402,17 @@ function cmdOff(): void {
   }
 
   fs.renameSync(claudeMd, backupMd);
+
+  // Backup .claude/agents/ directory
+  if (fs.existsSync(agentsDir)) {
+    if (fs.existsSync(agentsBackup)) {
+      fs.rmSync(agentsBackup, { recursive: true, force: true });
+    }
+    fs.renameSync(agentsDir, agentsBackup);
+  }
+
   removeHook(cwd);
-  console.log('\x1b[35m🐦 AgentCrow disabled.\x1b[0m CLAUDE.md backed up. Run `agentcrow on` to re-enable.');
+  console.log('\x1b[35m🐦 AgentCrow disabled.\x1b[0m CLAUDE.md and agents backed up. Run `agentcrow on` to re-enable.');
 }
 
 // ─── agentcrow on ───
@@ -391,6 +420,8 @@ function cmdOn(): void {
   const cwd = process.cwd();
   const claudeMd = path.join(cwd, '.claude', 'CLAUDE.md');
   const backupMd = path.join(cwd, '.claude', 'CLAUDE.md.agentcrow-backup');
+  const agentsDir = path.join(cwd, '.claude', 'agents');
+  const agentsBackup = path.join(cwd, '.claude', 'agents.agentcrow-backup');
 
   if (fs.existsSync(claudeMd)) {
     const content = fs.readFileSync(claudeMd, 'utf-8');
@@ -403,6 +434,12 @@ function cmdOn(): void {
 
   if (fs.existsSync(backupMd)) {
     fs.renameSync(backupMd, claudeMd);
+
+    // Restore .claude/agents/ from backup
+    if (fs.existsSync(agentsBackup) && !fs.existsSync(agentsDir)) {
+      fs.renameSync(agentsBackup, agentsDir);
+    }
+
     installHook(cwd);
     console.log('\x1b[32m✓ AgentCrow re-enabled.\x1b[0m Restored from backup.');
   } else {
@@ -456,11 +493,16 @@ function installHook(cwd: string): void {
   }
 
   if (!settings.hooks) settings.hooks = {};
+  if (!settings.hooks.SessionStart) settings.hooks.SessionStart = [];
 
-  settings.hooks.SessionStart = [{
-    type: 'command',
-    command: "echo '🐦 AgentCrow active'",
-  }];
+  // Check if our hook already exists
+  const hasOurHook = settings.hooks.SessionStart.some((h: { command?: string }) => h.command?.includes('AgentCrow'));
+  if (!hasOurHook) {
+    settings.hooks.SessionStart.push({
+      type: 'command',
+      command: "echo '🐦 AgentCrow active'",
+    });
+  }
 
   fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2), 'utf-8');
 }

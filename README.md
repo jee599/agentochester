@@ -40,7 +40,7 @@
 | Auto-decompose prompts | ❌ you split manually | ✅ one prompt in |
 | Agent identity & rules | ❌ blank subagents | ✅ personality, MUST/MUST NOT |
 | Works without config | ❌ needs `--agents` JSON | ✅ `npx agentcrow init` |
-| 15 divisions (eng, game, design...) | ❌ | ✅ |
+| Multiple divisions (eng, game, design...) | ❌ | ✅ |
 
 > **Agent Teams gives you the engine. AgentCrow gives it a brain.**
 
@@ -169,15 +169,15 @@ No API key. No server. Just Claude Code + CLAUDE.md.
 <a id="agents"></a>
 ## 🤖 9 Builtin Agents + External Agents
 
-| Division | Count | Examples |
-|:---------|------:|:---------|
-| **Engineering** | 23 | frontend_developer, backend_architect, ai_engineer, sre |
-| **Game Dev** | 20 | game_designer, level_designer, unreal, unity, godot |
-| **Marketing** | 18 | content_strategist, seo_specialist, social_media |
-| **Testing** | 8 | test_automation, performance_tester |
-| **Design** | 8 | ui_designer, ux_researcher, brand_guardian |
-| **Builtin** | 9 | qa_engineer, korean_tech_writer, security_auditor |
-| + 9 more | 58 | sales, support, product, strategy, spatial-computing... |
+| Division | Examples |
+|:---------|:---------|
+| **Engineering** | frontend_developer, backend_architect, ai_engineer, sre |
+| **Game Dev** | game_designer, level_designer, unreal, unity, godot |
+| **Marketing** | content_strategist, seo_specialist, social_media |
+| **Testing** | test_automation, performance_tester |
+| **Design** | ui_designer, ux_researcher, brand_guardian |
+| **Builtin** | qa_engineer, korean_tech_writer, security_auditor |
+| + more | sales, support, product, strategy, spatial-computing... |
 
 <a id="commands"></a>
 ## 🔧 Commands
@@ -217,7 +217,7 @@ Simple prompts run normally. AgentCrow only activates for multi-task requests.
 | 🔴 `agentcrow off` | Completely disabled |
 
 > [!IMPORTANT]
-> AgentCrow only touches `.claude/CLAUDE.md`. No project dependencies, no `.agr/` folder, no background processes. `agentcrow off` removes it cleanly.
+> AgentCrow only touches `.claude/CLAUDE.md` and `.claude/agents/`. No project dependencies, no background processes. `agentcrow off` backs up and removes both cleanly.
 
 ## 🤝 Contributing
 

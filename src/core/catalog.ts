@@ -39,19 +39,19 @@ export class AgentCatalog {
   findByRole(role: string): AgentDefinition | null {
     const normalized = role.toLowerCase().replace(/[-\s]/g, '_');
 
-    // Priority: external first, then builtin
-    const externalEntry = this.entries.find(
-      (e) => e.source.type === 'external' && e.role === normalized,
-    );
-    if (externalEntry) {
-      return this.loadAgent(externalEntry);
-    }
-
+    // Priority: builtin first (hand-crafted, higher quality), then external
     const builtinEntry = this.entries.find(
       (e) => e.source.type === 'builtin' && e.role === normalized,
     );
     if (builtinEntry) {
       return this.loadAgent(builtinEntry);
+    }
+
+    const externalEntry = this.entries.find(
+      (e) => e.source.type === 'external' && e.role === normalized,
+    );
+    if (externalEntry) {
+      return this.loadAgent(externalEntry);
     }
 
     return null;

@@ -49,7 +49,4 @@ describe('AgentManager 3-tier matching', () => {
     expect(builtin!.agents.length).toBe(9);
   });
 
-  it('createAgent throws for unimplemented role', async () => {
-    await expect(manager.createAgent('unknown', 'test')).rejects.toThrow('Auto-generation not yet implemented');
-  });
 });

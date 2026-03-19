@@ -46,10 +46,6 @@ export class AgentManager {
     return { agent: null, matchType: 'none' };
   }
 
-  async createAgent(role: string, _taskDescription: string): Promise<AgentDefinition> {
-    throw new Error(`Auto-generation not yet implemented for role: ${role}`);
-  }
-
   listAgents(): Array<{
     division: string;
     agents: Array<{ name: string; role: string; description: string; source: string }>;

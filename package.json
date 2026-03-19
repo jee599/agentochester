@@ -1,6 +1,6 @@
 {
   "name": "agentcrow",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "description": "Auto Agent Router — 9 builtin + external agents, auto-decompose prompts, dispatch subagents in Claude Code",
   "bin": {
     "agentcrow": "./dist/cli.js"
@@ -18,7 +18,7 @@
     "url": "git+https://github.com/jee599/agentcrow.git"
   },
   "license": "MIT",
-  "files": ["dist/", "agents/builtin/", "templates/"],
+  "files": ["dist/", "agents/builtin/"],
   "dependencies": {
     "yaml": "^2.8.2"
   },
