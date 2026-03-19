@@ -39,7 +39,7 @@ export class ClaudeCLIBridge {
   private runClaude(prompt: string, workingDir?: string): Promise<BridgeResult> {
     return new Promise((resolve, reject) => {
       const start = Date.now();
-      const args = ['-p', '--dangerously-skip-permissions', prompt];
+      const args = ['-p', prompt];
 
       const env = { ...process.env };
       delete env.ANTHROPIC_API_KEY;
