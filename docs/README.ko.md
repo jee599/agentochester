@@ -5,8 +5,8 @@
 </h1>
 
 <h3 align="center">
-  You type one prompt. AgentCrow splits it across 144 specialized agents.<br>
-  <code>npx agentcrow init</code> → <code>claude</code> → auto-dispatch.
+  프롬프트 하나 치면, AgentCrow가 144개 전문 에이전트로 쪼개서 실행한다.<br>
+  <code>npx agentcrow init</code> → <code>claude</code> → 자동 디스패치.
 </h3>
 
 <p align="center">
@@ -17,38 +17,35 @@
 </p>
 
 <p align="center">
-  <a href="#install">Install</a> •
-  <a href="#how-it-works">How It Works</a> •
-  <a href="#agents">Agents</a> •
-  <a href="#commands">Commands</a> •
-  <a href="docs/README.ko.md">한국어</a> •
-  <a href="docs/README.ja.md">日本語</a> •
-  <a href="docs/README.zh.md">中文</a>
+  <a href="../README.md">English</a> •
+  한국어 •
+  <a href="README.ja.md">日本語</a> •
+  <a href="README.zh.md">中文</a>
 </p>
 
 ---
 
 ```
-  You:    "피카츄 배구 멀티로 만들어줘"
+  나:    "피카츄 배구 멀티로 만들어줘"
 
-  AgentCrow decomposes → 4 agents:
+  AgentCrow가 분해 → 에이전트 4개:
 
-    🎮 game_designer       → game mechanics, physics, scoring
-    🖥️ frontend_developer   → Canvas rendering, game loop, input
-    🏗️ backend_architect    → WebSocket server, matchmaking
-    🧪 qa_engineer          → physics tests, sync tests, E2E
+    🎮 game_designer       → 게임 메커닉, 물리, 점수 시스템
+    🖥️ frontend_developer   → Canvas 렌더링, 게임 루프, 입력 처리
+    🏗️ backend_architect    → WebSocket 서버, 매치메이킹
+    🧪 qa_engineer          → 물리 테스트, 동기화 테스트, E2E
 
-  Claude dispatches each agent automatically.
+  Claude가 각 에이전트를 자동으로 디스패치한다.
 ```
 
-<h3 align="center">⬇️ One line. That's it.</h3>
+<h3 align="center">⬇️ 한 줄이면 끝이다.</h3>
 
 ```bash
 npx agentcrow init
 ```
 
 <p align="center">
-  Then just run <code>claude</code> as usual. AgentCrow handles the rest.<br>
+  이후 평소처럼 <code>claude</code>만 실행하면 된다. 나머지는 AgentCrow가 알아서 한다.<br>
   <b>macOS · Linux · Windows</b>
 </p>
 
@@ -60,38 +57,38 @@ npx agentcrow init
 <tr>
 <td width="50%">
 
-**❌ Without AgentCrow**
+**❌ AgentCrow 없이**
 ```
-You: Build a dashboard with API,
-     tests, and docs
+나: 대시보드 만들어줘.
+    API, 테스트, 문서 포함.
 
-Claude: (one agent does everything)
-        - reads all files
-        - writes all code
-        - runs all tests
-        - writes all docs
-        = one context window
-        = forgets early work
-        = 10+ minutes
+Claude: (에이전트 하나가 전부 처리)
+        - 파일 전부 읽고
+        - 코드 전부 쓰고
+        - 테스트 전부 돌리고
+        - 문서 전부 작성
+        = 컨텍스트 윈도우 하나
+        = 앞에서 한 작업을 잊음
+        = 10분 이상
 ```
 
 </td>
 <td width="50%">
 
-**✅ With AgentCrow**
+**✅ AgentCrow 사용**
 ```
-You: same prompt
+나: 같은 프롬프트
 
-AgentCrow auto-dispatches:
-  @ui_designer     → layout
-  @frontend_dev    → React code
+AgentCrow 자동 디스패치:
+  @ui_designer     → 레이아웃
+  @frontend_dev    → React 코드
   @backend_arch    → API
-  @qa_engineer     → tests
-  @tech_writer     → docs
+  @qa_engineer     → 테스트
+  @tech_writer     → 문서
 
-  = parallel agents
-  = each focused
-  = better results
+  = 병렬 에이전트
+  = 각자 전문 영역에 집중
+  = 더 나은 결과
 ```
 
 </td>
@@ -101,22 +98,22 @@ AgentCrow auto-dispatches:
 ---
 
 <a id="install"></a>
-## ⚡ Install
+## ⚡ 설치
 
 ```bash
 npx agentcrow init
 ```
 
-That's it. This creates:
-- `.agr/agents/` — 144 agent definitions (9 builtin + 135 external)
-- `.claude/CLAUDE.md` — auto-dispatch instructions for Claude
-- `.claude/settings.local.json` — SessionStart hook
+이게 전부다. 실행하면 아래 파일들이 생성된다:
+- `.agr/agents/` — 144개 에이전트 정의 (빌트인 9개 + 외부 135개)
+- `.claude/CLAUDE.md` — Claude용 자동 디스패치 규칙
+- `.claude/settings.local.json` — SessionStart 훅
 
 > [!TIP]
-> AgentCrow downloads 135 external agents from [agency-agents](https://github.com/msitarzewski/agency-agents) on first init. Requires `git`.
+> AgentCrow는 첫 init 시 [agency-agents](https://github.com/msitarzewski/agency-agents)에서 외부 에이전트 135개를 내려받는다. `git`이 필요하다.
 
 <a id="how-it-works"></a>
-## ⚙️ How It Works
+## ⚙️ 동작 원리
 
 ```
   ┌─────────────────────────────────────┐
@@ -134,19 +131,19 @@ That's it. This creates:
   └─────────────────────────────────────┘
 ```
 
-1. **You run `claude`** in a project with AgentCrow initialized
-2. **You type a prompt** — anything complex
-3. **Claude reads CLAUDE.md** — sees the agent roster and dispatch rules
-4. **Claude decomposes** — splits your prompt into focused tasks
-5. **Claude dispatches** — uses the Agent tool to spawn subagents
-6. **Each agent works** — with its own expertise
+1. **AgentCrow가 초기화된 프로젝트에서 `claude`를 실행**한다
+2. **복잡한 작업을 프롬프트**로 입력한다
+3. **Claude가 CLAUDE.md를 읽는다** — 에이전트 목록과 디스패치 규칙을 파악한다
+4. **Claude가 분해한다** — 프롬프트를 집중된 개별 태스크로 나눈다
+5. **Claude가 디스패치한다** — Agent 도구로 서브에이전트를 생성한다
+6. **각 에이전트가 작업한다** — 자기 전문 영역 안에서
 
-No API key. No server. Just Claude Code + CLAUDE.md.
+API 키 필요 없다. 서버 필요 없다. Claude Code + CLAUDE.md, 그게 전부다.
 
 <a id="agents"></a>
-## 🤖 144 Agents, 15 Divisions
+## 🤖 144개 에이전트, 15개 부서
 
-| Division | Count | Examples |
+| 부서 | 수 | 예시 |
 |:---------|------:|:---------|
 | **Engineering** | 23 | frontend_developer, backend_architect, ai_engineer, sre |
 | **Game Dev** | 20 | game_designer, level_designer, unreal, unity, godot |
@@ -154,10 +151,10 @@ No API key. No server. Just Claude Code + CLAUDE.md.
 | **Testing** | 8 | test_automation, performance_tester |
 | **Design** | 8 | ui_designer, ux_researcher, brand_guardian |
 | **Builtin** | 9 | qa_engineer, korean_tech_writer, security_auditor |
-| + 9 more | 58 | sales, support, product, strategy, spatial-computing... |
+| + 9개 더 | 58 | sales, support, product, strategy, spatial-computing... |
 
 <a id="commands"></a>
-## 🔧 Commands
+## 🔧 명령어
 
 ```bash
 npx agentcrow init              # Set up agents + CLAUDE.md
@@ -169,7 +166,7 @@ npx agentcrow agents search ai  # Search by keyword
 npx agentcrow compose "prompt"  # Preview decomposition (dry run)
 ```
 
-## 💡 Example Prompts
+## 💡 프롬프트 예시
 
 ```
 React로 로그인 만들고 API 연동하고 테스트하고 문서 작성해줘
@@ -182,34 +179,34 @@ Build a real-time chat app with WebSocket and deploy to Docker
 → game_designer + backend_architect + qa_engineer
 ```
 
-Simple prompts run normally. AgentCrow only activates for multi-task requests.
+단순한 프롬프트는 평소처럼 동작한다. AgentCrow는 멀티 태스크 요청에만 개입한다.
 
-## 🛡️ Zero Overhead
+## 🛡️ 오버헤드 제로
 
 | | |
 |:---|:---|
-| 🟢 Complex prompts | Auto-decomposed into agents |
-| 🔵 Simple prompts | Runs normally, no agents |
-| 🔴 `agentcrow off` | Completely disabled |
+| 🟢 복잡한 프롬프트 | 에이전트로 자동 분해 |
+| 🔵 단순한 프롬프트 | 평소처럼 실행, 에이전트 없음 |
+| 🔴 `agentcrow off` | 완전히 비활성화 |
 
 > [!IMPORTANT]
-> AgentCrow only adds a CLAUDE.md file. No dependencies, no background processes. `agentcrow off` removes it cleanly.
+> AgentCrow는 CLAUDE.md 파일 하나만 추가한다. 의존성 없고, 백그라운드 프로세스 없다. `agentcrow off`로 깔끔하게 제거된다.
 
-## 🤝 Contributing
+## 🤝 기여하기
 
 ```bash
 git clone --recursive https://github.com/jee599/agentochester.git
 cd agentochester && npm install && npm test  # 70 tests
 ```
 
-## 📜 License
+## 📜 라이선스
 
-MIT — External agents from [agency-agents](https://github.com/msitarzewski/agency-agents).
+MIT — 외부 에이전트 출처: [agency-agents](https://github.com/msitarzewski/agency-agents).
 
 ---
 
 <p align="center">
-  <b>🐦 One prompt. Many agents. Zero config.</b>
+  <b>🐦 프롬프트 하나. 에이전트 여럿. 설정 제로.</b>
 </p>
 
 <p align="center">

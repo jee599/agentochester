@@ -5,8 +5,8 @@
 </h1>
 
 <h3 align="center">
-  You type one prompt. AgentCrow splits it across 144 specialized agents.<br>
-  <code>npx agentcrow init</code> → <code>claude</code> → auto-dispatch.
+  输入一个 prompt，AgentCrow 自动拆分到 144 个专业 Agent 并行执行。<br>
+  <code>npx agentcrow init</code> → <code>claude</code> → 自动调度。
 </h3>
 
 <p align="center">
@@ -17,38 +17,35 @@
 </p>
 
 <p align="center">
-  <a href="#install">Install</a> •
-  <a href="#how-it-works">How It Works</a> •
-  <a href="#agents">Agents</a> •
-  <a href="#commands">Commands</a> •
-  <a href="docs/README.ko.md">한국어</a> •
-  <a href="docs/README.ja.md">日本語</a> •
-  <a href="docs/README.zh.md">中文</a>
+  <a href="../README.md">English</a> •
+  <a href="README.ko.md">한국어</a> •
+  <a href="README.ja.md">日本語</a> •
+  中文
 </p>
 
 ---
 
 ```
-  You:    "피카츄 배구 멀티로 만들어줘"
+  你:    "做一个皮卡丘排球多人对战游戏"
 
-  AgentCrow decomposes → 4 agents:
+  AgentCrow 自动分解 → 4 个 Agent:
 
-    🎮 game_designer       → game mechanics, physics, scoring
-    🖥️ frontend_developer   → Canvas rendering, game loop, input
-    🏗️ backend_architect    → WebSocket server, matchmaking
-    🧪 qa_engineer          → physics tests, sync tests, E2E
+    🎮 game_designer       → 游戏机制、物理引擎、计分系统
+    🖥️ frontend_developer   → Canvas 渲染、游戏循环、输入处理
+    🏗️ backend_architect    → WebSocket 服务器、匹配系统
+    🧪 qa_engineer          → 物理测试、同步测试、E2E
 
-  Claude dispatches each agent automatically.
+  Claude 自动调度每个 Agent。
 ```
 
-<h3 align="center">⬇️ One line. That's it.</h3>
+<h3 align="center">⬇️ 一行命令，搞定。</h3>
 
 ```bash
 npx agentcrow init
 ```
 
 <p align="center">
-  Then just run <code>claude</code> as usual. AgentCrow handles the rest.<br>
+  然后像平时一样运行 <code>claude</code> 就行。剩下的交给 AgentCrow。<br>
   <b>macOS · Linux · Windows</b>
 </p>
 
@@ -60,38 +57,38 @@ npx agentcrow init
 <tr>
 <td width="50%">
 
-**❌ Without AgentCrow**
+**❌ 没有 AgentCrow**
 ```
-You: Build a dashboard with API,
-     tests, and docs
+你: 做一个 Dashboard，
+    包含 API、测试和文档。
 
-Claude: (one agent does everything)
-        - reads all files
-        - writes all code
-        - runs all tests
-        - writes all docs
-        = one context window
-        = forgets early work
-        = 10+ minutes
+Claude:（一个 Agent 干所有事）
+        - 读所有文件
+        - 写所有代码
+        - 跑所有测试
+        - 写所有文档
+        = 一个上下文窗口
+        = 忘掉前面的工作
+        = 10 分钟以上
 ```
 
 </td>
 <td width="50%">
 
-**✅ With AgentCrow**
+**✅ 使用 AgentCrow**
 ```
-You: same prompt
+你: 同样的 prompt
 
-AgentCrow auto-dispatches:
-  @ui_designer     → layout
-  @frontend_dev    → React code
+AgentCrow 自动调度:
+  @ui_designer     → 布局
+  @frontend_dev    → React 代码
   @backend_arch    → API
-  @qa_engineer     → tests
-  @tech_writer     → docs
+  @qa_engineer     → 测试
+  @tech_writer     → 文档
 
-  = parallel agents
-  = each focused
-  = better results
+  = 并行 Agent
+  = 各自专注擅长领域
+  = 更好的结果
 ```
 
 </td>
@@ -101,22 +98,22 @@ AgentCrow auto-dispatches:
 ---
 
 <a id="install"></a>
-## ⚡ Install
+## ⚡ 安装
 
 ```bash
 npx agentcrow init
 ```
 
-That's it. This creates:
-- `.agr/agents/` — 144 agent definitions (9 builtin + 135 external)
-- `.claude/CLAUDE.md` — auto-dispatch instructions for Claude
-- `.claude/settings.local.json` — SessionStart hook
+就这么简单。运行后会生成以下文件：
+- `.agr/agents/` — 144 个 Agent 定义（内置 9 个 + 外部 135 个）
+- `.claude/CLAUDE.md` — Claude 自动调度规则
+- `.claude/settings.local.json` — SessionStart 钩子
 
 > [!TIP]
-> AgentCrow downloads 135 external agents from [agency-agents](https://github.com/msitarzewski/agency-agents) on first init. Requires `git`.
+> AgentCrow 在首次 init 时会从 [agency-agents](https://github.com/msitarzewski/agency-agents) 下载 135 个外部 Agent，需要 `git`。
 
 <a id="how-it-works"></a>
-## ⚙️ How It Works
+## ⚙️ 工作原理
 
 ```
   ┌─────────────────────────────────────┐
@@ -134,19 +131,19 @@ That's it. This creates:
   └─────────────────────────────────────┘
 ```
 
-1. **You run `claude`** in a project with AgentCrow initialized
-2. **You type a prompt** — anything complex
-3. **Claude reads CLAUDE.md** — sees the agent roster and dispatch rules
-4. **Claude decomposes** — splits your prompt into focused tasks
-5. **Claude dispatches** — uses the Agent tool to spawn subagents
-6. **Each agent works** — with its own expertise
+1. **在已初始化 AgentCrow 的项目中运行 `claude`**
+2. **输入一个复杂的 prompt**
+3. **Claude 读取 CLAUDE.md** — 获取 Agent 列表和调度规则
+4. **Claude 分解任务** — 将 prompt 拆分为多个专注的子任务
+5. **Claude 调度 Agent** — 通过 Agent 工具生成子 Agent
+6. **每个 Agent 各司其职** — 在自己的专业领域内工作
 
-No API key. No server. Just Claude Code + CLAUDE.md.
+不需要 API Key。不需要服务器。只需 Claude Code + CLAUDE.md。
 
 <a id="agents"></a>
-## 🤖 144 Agents, 15 Divisions
+## 🤖 144 个 Agent，15 个部门
 
-| Division | Count | Examples |
+| 部门 | 数量 | 示例 |
 |:---------|------:|:---------|
 | **Engineering** | 23 | frontend_developer, backend_architect, ai_engineer, sre |
 | **Game Dev** | 20 | game_designer, level_designer, unreal, unity, godot |
@@ -154,10 +151,10 @@ No API key. No server. Just Claude Code + CLAUDE.md.
 | **Testing** | 8 | test_automation, performance_tester |
 | **Design** | 8 | ui_designer, ux_researcher, brand_guardian |
 | **Builtin** | 9 | qa_engineer, korean_tech_writer, security_auditor |
-| + 9 more | 58 | sales, support, product, strategy, spatial-computing... |
+| + 其他 9 个 | 58 | sales, support, product, strategy, spatial-computing... |
 
 <a id="commands"></a>
-## 🔧 Commands
+## 🔧 命令
 
 ```bash
 npx agentcrow init              # Set up agents + CLAUDE.md
@@ -169,7 +166,7 @@ npx agentcrow agents search ai  # Search by keyword
 npx agentcrow compose "prompt"  # Preview decomposition (dry run)
 ```
 
-## 💡 Example Prompts
+## 💡 Prompt 示例
 
 ```
 React로 로그인 만들고 API 연동하고 테스트하고 문서 작성해줘
@@ -182,34 +179,34 @@ Build a real-time chat app with WebSocket and deploy to Docker
 → game_designer + backend_architect + qa_engineer
 ```
 
-Simple prompts run normally. AgentCrow only activates for multi-task requests.
+简单的 prompt 会正常运行，AgentCrow 只在多任务请求时才会介入。
 
-## 🛡️ Zero Overhead
+## 🛡️ 零开销
 
 | | |
 |:---|:---|
-| 🟢 Complex prompts | Auto-decomposed into agents |
-| 🔵 Simple prompts | Runs normally, no agents |
-| 🔴 `agentcrow off` | Completely disabled |
+| 🟢 复杂 prompt | 自动拆分为多个 Agent |
+| 🔵 简单 prompt | 正常运行，不启动 Agent |
+| 🔴 `agentcrow off` | 完全禁用 |
 
 > [!IMPORTANT]
-> AgentCrow only adds a CLAUDE.md file. No dependencies, no background processes. `agentcrow off` removes it cleanly.
+> AgentCrow 只添加一个 CLAUDE.md 文件。没有依赖，没有后台进程。`agentcrow off` 即可完全移除。
 
-## 🤝 Contributing
+## 🤝 贡献
 
 ```bash
 git clone --recursive https://github.com/jee599/agentochester.git
 cd agentochester && npm install && npm test  # 70 tests
 ```
 
-## 📜 License
+## 📜 许可证
 
-MIT — External agents from [agency-agents](https://github.com/msitarzewski/agency-agents).
+MIT — 外部 Agent 来源：[agency-agents](https://github.com/msitarzewski/agency-agents)。
 
 ---
 
 <p align="center">
-  <b>🐦 One prompt. Many agents. Zero config.</b>
+  <b>🐦 一个 Prompt。多个 Agent。零配置。</b>
 </p>
 
 <p align="center">
