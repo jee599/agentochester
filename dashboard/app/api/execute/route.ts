@@ -15,12 +15,15 @@ function runClaude(
     const env = { ...process.env };
     delete env.ANTHROPIC_API_KEY;
 
-    const proc = spawn("claude", ["-p", "--allowedTools", "Write,Edit,Read,Bash,Glob,Grep", prompt], {
+    const proc = spawn("claude", ["-p", "--allowedTools", "Write,Edit,Read,Bash,Glob,Grep"], {
       cwd,
       shell: false,
       timeout: timeoutMs,
       env,
     });
+
+    proc.stdin.write(prompt);
+    proc.stdin.end();
 
     let stdout = "";
     let stderr = "";
