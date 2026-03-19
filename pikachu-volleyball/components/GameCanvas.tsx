@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useCallback } from "react";
-import { type GameState } from "@/lib/game/types";
-import { render } from "@/lib/game/renderer";
-import { CANVAS_WIDTH, CANVAS_HEIGHT } from "@/lib/game/types";
+import { useEffect, useRef, useState, useCallback } from "react";
+import { type GameState, GROUND_WIDTH, GROUND_HEIGHT } from "@/lib/game/types";
+import { render, loadAssets, isAssetsLoaded } from "@/lib/game/renderer";
 
 interface GameCanvasProps {
   gameState: GameState;
@@ -11,47 +10,57 @@ interface GameCanvasProps {
 
 export default function GameCanvas({ gameState }: GameCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const stateRef = useRef<GameState>(gameState);
+  const rafRef = useRef<number>(0);
+  const [loaded, setLoaded] = useState(false);
 
-  const resizeCanvas = useCallback(() => {
-    const canvas = canvasRef.current;
-    const container = containerRef.current;
-    if (!canvas || !container) return;
+  stateRef.current = gameState;
 
-    const containerWidth = container.clientWidth;
-    const scale = Math.min(containerWidth / CANVAS_WIDTH, 1);
-
-    canvas.style.width = `${CANVAS_WIDTH * scale}px`;
-    canvas.style.height = `${CANVAS_HEIGHT * scale}px`;
+  useEffect(() => {
+    loadAssets().then(() => setLoaded(true));
   }, []);
 
-  useEffect(() => {
-    resizeCanvas();
-    window.addEventListener("resize", resizeCanvas);
-    return () => window.removeEventListener("resize", resizeCanvas);
-  }, [resizeCanvas]);
-
-  useEffect(() => {
+  const renderLoop = useCallback(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || !isAssetsLoaded()) return;
 
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    render(ctx, gameState);
-  }, [gameState]);
+    render(ctx, stateRef.current);
+    rafRef.current = requestAnimationFrame(renderLoop);
+  }, []);
+
+  useEffect(() => {
+    if (!loaded) return;
+    rafRef.current = requestAnimationFrame(renderLoop);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [loaded, renderLoop]);
+
+  // CSS 스케일링: 원본 해상도의 2배
+  const scale = 2;
 
   return (
-    <div
-      ref={containerRef}
-      className="flex w-full items-center justify-center"
-    >
+    <div className="flex w-full items-center justify-center">
+      {!loaded && (
+        <div
+          style={{ width: GROUND_WIDTH * scale, height: GROUND_HEIGHT * scale }}
+          className="flex items-center justify-center bg-black text-gray-500"
+        >
+          Loading sprites...
+        </div>
+      )}
       <canvas
         ref={canvasRef}
-        width={CANVAS_WIDTH}
-        height={CANVAS_HEIGHT}
-        className="rounded-lg shadow-2xl"
-        style={{ imageRendering: "pixelated" }}
+        width={GROUND_WIDTH}
+        height={GROUND_HEIGHT}
+        className="block"
+        style={{
+          width: GROUND_WIDTH * scale,
+          height: GROUND_HEIGHT * scale,
+          imageRendering: "pixelated",
+          display: loaded ? "block" : "none",
+        }}
       />
     </div>
   );

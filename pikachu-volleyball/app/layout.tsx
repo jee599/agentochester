@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Pikachu Volleyball",
-  description: "Multiplayer Pikachu Volleyball game",
+  description: "Multiplayer Pikachu Volleyball — 1997 Original Recreation",
 };
 
 export default function RootLayout({
@@ -13,7 +13,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ko">
-      <body className="min-h-screen bg-gray-950 antialiased">{children}</body>
+      <body className="min-h-screen bg-black antialiased">{children}</body>
     </html>
   );
 }

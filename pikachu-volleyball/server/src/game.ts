@@ -1,88 +1,135 @@
 import {
-  type Ball,
-  type Pikachu,
   type InputState,
   type GameStateSync,
   type PlayerSide,
-  CANVAS_WIDTH,
-  GROUND_Y,
-  NET_X,
-  NET_WIDTH,
-  NET_TOP,
+  GROUND_WIDTH,
+  GROUND_HALF_WIDTH,
+  PLAYER_HALF_LENGTH,
+  PLAYER_TOUCHING_GROUND_Y,
   BALL_RADIUS,
-  BALL_GRAVITY,
-  BALL_BOUNCE,
-  PIKACHU_WIDTH,
-  PIKACHU_HEAD_RADIUS,
-  PIKACHU_SPEED,
-  PIKACHU_JUMP_POWER,
-  PIKACHU_GRAVITY,
+  BALL_TOUCHING_GROUND_Y,
+  NET_PILLAR_HALF_WIDTH,
+  NET_PILLAR_TOP_TOP_Y,
+  NET_PILLAR_TOP_BOTTOM_Y,
+  PLAYER1_INITIAL_X,
+  PLAYER2_INITIAL_X,
+  BALL_INITIAL_Y,
+  BALL_P1_SERVE_X,
+  BALL_P2_SERVE_X,
+  PLAYER1_X_MIN,
+  PLAYER1_X_MAX,
+  PLAYER2_X_MIN,
+  PLAYER2_X_MAX,
+  PLAYER_WALK_SPEED,
+  PLAYER_JUMP_VELOCITY,
+  GRAVITY,
   WINNING_SCORE,
+  PlayerState,
 } from './types.js';
 
+// 내부 플레이어 상태 (서버 전용)
+interface InternalPlayer {
+  x: number;
+  y: number;
+  yVelocity: number;
+  state: number;
+  frameNumber: number;
+  isCollisionWithBallHappened: boolean;
+  lyingDownDurationLeft: number;
+  divingDirection: number;
+}
+
+// 내부 공 상태 (서버 전용)
+interface InternalBall {
+  x: number;
+  y: number;
+  xVelocity: number;
+  yVelocity: number;
+  rotation: number;
+  fineRotation: number;
+  isPowerHit: boolean;
+}
+
 export class Game {
-  state: GameStateSync;
+  player1: InternalPlayer;
+  player2: InternalPlayer;
+  ball: InternalBall;
+  score: { left: number; right: number };
+  phase: GameStateSync['phase'];
+  servingSide: PlayerSide;
   inputs: { left: InputState; right: InputState };
 
   constructor() {
+    this.score = { left: 0, right: 0 };
+    this.servingSide = 'left';
+    this.phase = 'playing';
+    this.player1 = this.createPlayer('left');
+    this.player2 = this.createPlayer('right');
+    this.ball = this.createBall('left');
     this.inputs = {
-      left: { left: false, right: false, jump: false },
-      right: { left: false, right: false, jump: false },
-    };
-    this.state = this.createInitialState('left');
-  }
-
-  private createBall(servingSide: PlayerSide): Ball {
-    return {
-      x: servingSide === 'left' ? 200 : 600,
-      y: 100,
-      vx: 0,
-      vy: 0,
-      radius: BALL_RADIUS,
+      left: { left: false, right: false, jump: false, powerHit: false },
+      right: { left: false, right: false, jump: false, powerHit: false },
     };
   }
 
-  private createPikachu(side: PlayerSide): Pikachu {
+  private createPlayer(side: PlayerSide): InternalPlayer {
     return {
-      x: side === 'left' ? 200 : 600,
-      y: GROUND_Y,
-      vx: 0,
-      vy: 0,
-      isJumping: false,
-      side,
+      x: side === 'left' ? PLAYER1_INITIAL_X : PLAYER2_INITIAL_X,
+      y: PLAYER_TOUCHING_GROUND_Y,
+      yVelocity: 0,
+      state: PlayerState.IDLE,
+      frameNumber: 0,
+      isCollisionWithBallHappened: false,
+      lyingDownDurationLeft: 0,
+      divingDirection: 0,
     };
   }
 
-  private createInitialState(servingSide: PlayerSide): GameStateSync {
+  private createBall(servingSide: PlayerSide): InternalBall {
     return {
-      ball: this.createBall(servingSide),
-      player1: this.createPikachu('left'),
-      player2: this.createPikachu('right'),
-      score: this.state?.score ?? { left: 0, right: 0 },
-      phase: 'playing',
-      servingSide,
+      x: servingSide === 'left' ? BALL_P1_SERVE_X : BALL_P2_SERVE_X,
+      y: BALL_INITIAL_Y,
+      xVelocity: 0,
+      yVelocity: 0,
+      rotation: 0,
+      fineRotation: 0,
+      isPowerHit: false,
     };
   }
 
   resetRound(servingSide: PlayerSide): void {
-    const score = this.state.score;
-    this.state = this.createInitialState(servingSide);
-    this.state.score = score;
+    this.servingSide = servingSide;
+    this.phase = 'playing';
+    this.player1 = this.createPlayer('left');
+    this.player2 = this.createPlayer('right');
+    this.ball = this.createBall(servingSide);
     this.inputs = {
-      left: { left: false, right: false, jump: false },
-      right: { left: false, right: false, jump: false },
+      left: { left: false, right: false, jump: false, powerHit: false },
+      right: { left: false, right: false, jump: false, powerHit: false },
     };
   }
 
   tick(): { scorer: PlayerSide } | null {
-    this.updatePikachu('left');
-    this.updatePikachu('right');
+    this.updatePlayer(this.player1, this.inputs.left, 'left');
+    this.updatePlayer(this.player2, this.inputs.right, 'right');
     this.updateBall();
 
-    // 바닥 충돌 → 득점
-    if (this.state.ball.y + this.state.ball.radius >= GROUND_Y) {
-      const scorer: PlayerSide = this.state.ball.x < NET_X ? 'right' : 'left';
-      this.state.score[scorer]++;
+    // 공-플레이어 충돌
+    this.handlePlayerBallCollision(this.player1);
+    this.handlePlayerBallCollision(this.player2);
+
+    // 공-월드 충돌
+    this.handleBallWorldCollision();
+
+    // 공 회전
+    this.ball.fineRotation += Math.floor(this.ball.xVelocity / 2);
+    this.ball.rotation = Math.floor(this.ball.fineRotation / 10) % 5;
+    if (this.ball.rotation < 0) this.ball.rotation += 5;
+
+    // 바닥 충돌 → 득점 판정
+    if (this.ball.y > BALL_TOUCHING_GROUND_Y) {
+      const scorer: PlayerSide = this.ball.x < GROUND_HALF_WIDTH ? 'right' : 'left';
+      this.score[scorer]++;
       return { scorer };
     }
 
@@ -90,135 +137,234 @@ export class Game {
   }
 
   isGameOver(): { winner: PlayerSide } | null {
-    if (this.state.score.left >= WINNING_SCORE) return { winner: 'left' };
-    if (this.state.score.right >= WINNING_SCORE) return { winner: 'right' };
+    if (this.score.left >= WINNING_SCORE) return { winner: 'left' };
+    if (this.score.right >= WINNING_SCORE) return { winner: 'right' };
     return null;
   }
 
-  private updatePikachu(side: PlayerSide): void {
-    const p = side === 'left' ? this.state.player1 : this.state.player2;
-    const input = this.inputs[side];
+  getState(): GameStateSync {
+    return {
+      player1: {
+        x: this.player1.x,
+        y: this.player1.y,
+        state: this.player1.state,
+        frameNumber: this.player1.frameNumber,
+        isCollisionWithBallHappened: this.player1.isCollisionWithBallHappened,
+      },
+      player2: {
+        x: this.player2.x,
+        y: this.player2.y,
+        state: this.player2.state,
+        frameNumber: this.player2.frameNumber,
+        isCollisionWithBallHappened: this.player2.isCollisionWithBallHappened,
+      },
+      ball: {
+        x: this.ball.x,
+        y: this.ball.y,
+        xVelocity: this.ball.xVelocity,
+        yVelocity: this.ball.yVelocity,
+        rotation: this.ball.rotation,
+        fineRotation: this.ball.fineRotation,
+        isPowerHit: this.ball.isPowerHit,
+      },
+      score: { ...this.score },
+      phase: this.phase,
+      servingSide: this.servingSide,
+    };
+  }
 
-    // 이동
-    p.vx = 0;
-    if (input.left) p.vx = -PIKACHU_SPEED;
-    if (input.right) p.vx = PIKACHU_SPEED;
+  private updatePlayer(
+    player: InternalPlayer,
+    input: InputState,
+    side: PlayerSide,
+  ): void {
+    const xMin = side === 'left' ? PLAYER1_X_MIN : PLAYER2_X_MIN;
+    const xMax = side === 'left' ? PLAYER1_X_MAX : PLAYER2_X_MAX;
 
-    // 점프
-    if (input.jump && !p.isJumping) {
-      p.vy = PIKACHU_JUMP_POWER;
-      p.isJumping = true;
+    // 누워있는 상태 처리
+    if (player.state === PlayerState.LYING_DOWN) {
+      player.lyingDownDurationLeft--;
+      if (player.lyingDownDurationLeft <= 0) {
+        player.state = PlayerState.IDLE;
+        player.frameNumber = 0;
+      }
+      return;
     }
 
-    // 중력
-    p.vy += PIKACHU_GRAVITY;
-    p.x += p.vx;
-    p.y += p.vy;
+    // 다이빙 상태 처리
+    if (player.state === PlayerState.DIVING) {
+      player.x += player.divingDirection * PLAYER_WALK_SPEED * 2;
+      player.yVelocity += GRAVITY;
+      player.y += player.yVelocity;
 
-    // 바닥
-    if (p.y >= GROUND_Y) {
-      p.y = GROUND_Y;
-      p.vy = 0;
-      p.isJumping = false;
+      if (player.y >= PLAYER_TOUCHING_GROUND_Y) {
+        player.y = PLAYER_TOUCHING_GROUND_Y;
+        player.yVelocity = 0;
+        player.state = PlayerState.LYING_DOWN;
+        player.lyingDownDurationLeft = 3;
+      }
+
+      player.x = Math.max(xMin, Math.min(xMax, player.x));
+      return;
     }
 
-    // 코트 제한
-    const halfWidth = PIKACHU_WIDTH / 2;
-    const netHalf = NET_WIDTH / 2;
-    if (side === 'left') {
-      p.x = Math.max(halfWidth, Math.min(NET_X - netHalf - halfWidth, p.x));
+    // 지상에 있을 때
+    if (player.y >= PLAYER_TOUCHING_GROUND_Y) {
+      // 걷기
+      if (input.left) player.x -= PLAYER_WALK_SPEED;
+      if (input.right) player.x += PLAYER_WALK_SPEED;
+
+      // 점프
+      if (input.jump) {
+        player.yVelocity = PLAYER_JUMP_VELOCITY;
+        player.state = PlayerState.JUMPING;
+        player.frameNumber = 0;
+      } else {
+        player.state = PlayerState.IDLE;
+      }
     } else {
-      p.x = Math.max(NET_X + netHalf + halfWidth, Math.min(CANVAS_WIDTH - halfWidth, p.x));
+      // 공중에서
+      player.yVelocity += GRAVITY;
+      player.y += player.yVelocity;
+
+      // 공중에서 좌우 이동
+      if (input.left) player.x -= PLAYER_WALK_SPEED;
+      if (input.right) player.x += PLAYER_WALK_SPEED;
+
+      // 파워 히트 (점프 중 다시 점프 버튼 → 다이빙)
+      if (input.powerHit && player.state === PlayerState.JUMPING) {
+        player.state = PlayerState.JUMPING_POWER_HIT;
+        player.frameNumber = 0;
+      }
+
+      // 다이빙 트리거
+      if (input.powerHit && player.state === PlayerState.JUMPING_POWER_HIT) {
+        if (input.left) {
+          player.state = PlayerState.DIVING;
+          player.divingDirection = -1;
+        } else if (input.right) {
+          player.state = PlayerState.DIVING;
+          player.divingDirection = 1;
+        }
+      }
+
+      // 착지
+      if (player.y >= PLAYER_TOUCHING_GROUND_Y) {
+        player.y = PLAYER_TOUCHING_GROUND_Y;
+        player.yVelocity = 0;
+        player.state = PlayerState.IDLE;
+        player.frameNumber = 0;
+      }
+    }
+
+    // 프레임 넘버 증가 (애니메이션)
+    player.frameNumber++;
+
+    // X 경계 제한
+    player.x = Math.max(xMin, Math.min(xMax, player.x));
+  }
+
+  private handlePlayerBallCollision(player: InternalPlayer): void {
+    const ball = this.ball;
+    const dx = Math.abs(ball.x - player.x);
+    const dy = Math.abs(ball.y - player.y);
+
+    // BOX 기반 충돌 판정 (원본 게임과 동일)
+    if (dx <= PLAYER_HALF_LENGTH && dy <= PLAYER_HALF_LENGTH) {
+      if (!player.isCollisionWithBallHappened) {
+        player.isCollisionWithBallHappened = true;
+
+        // X 방향 속도
+        if (ball.x < player.x) {
+          ball.xVelocity = -Math.floor(Math.abs(ball.x - player.x) / 3);
+        } else if (ball.x > player.x) {
+          ball.xVelocity = Math.floor(Math.abs(ball.x - player.x) / 3);
+        } else {
+          // xVelocity == 0이면 랜덤
+          ball.xVelocity = [-1, 0, 1][Math.floor(Math.random() * 3)];
+        }
+
+        if (ball.xVelocity === 0) {
+          ball.xVelocity = [-1, 0, 1][Math.floor(Math.random() * 3)];
+        }
+
+        // Y 방향 속도
+        ball.yVelocity = -Math.max(Math.abs(ball.yVelocity), 15);
+
+        // 파워 히트 판정
+        if (
+          player.state === PlayerState.JUMPING_POWER_HIT ||
+          player.state === PlayerState.DIVING
+        ) {
+          ball.isPowerHit = true;
+          // 파워 히트 시 더 강한 X 속도
+          ball.xVelocity = ball.x < player.x ? -10 : 10;
+          ball.yVelocity = -Math.max(Math.abs(ball.yVelocity), 18);
+        } else {
+          ball.isPowerHit = false;
+        }
+      }
+    } else {
+      // 충돌 영역을 벗어나면 플래그 리셋
+      player.isCollisionWithBallHappened = false;
     }
   }
 
   private updateBall(): void {
-    const ball = this.state.ball;
+    const ball = this.ball;
 
-    ball.vy += BALL_GRAVITY;
-    ball.x += ball.vx;
-    ball.y += ball.vy;
+    // 중력
+    ball.yVelocity += GRAVITY;
 
-    // 벽 반사
-    if (ball.x - ball.radius < 0) {
-      ball.x = ball.radius;
-      ball.vx = Math.abs(ball.vx) * BALL_BOUNCE;
+    // 위치 업데이트
+    ball.x += ball.xVelocity;
+    ball.y += ball.yVelocity;
+  }
+
+  private handleBallWorldCollision(): void {
+    const ball = this.ball;
+
+    // 왼쪽 벽
+    if (ball.x < BALL_RADIUS) {
+      ball.x = BALL_RADIUS;
+      ball.xVelocity = -ball.xVelocity;
     }
-    if (ball.x + ball.radius > CANVAS_WIDTH) {
-      ball.x = CANVAS_WIDTH - ball.radius;
-      ball.vx = -Math.abs(ball.vx) * BALL_BOUNCE;
+
+    // 오른쪽 벽
+    if (ball.x > GROUND_WIDTH) {
+      ball.x = GROUND_WIDTH;
+      ball.xVelocity = -ball.xVelocity;
     }
 
     // 천장
-    if (ball.y - ball.radius < 0) {
-      ball.y = ball.radius;
-      ball.vy = Math.abs(ball.vy) * BALL_BOUNCE;
+    if (ball.y < 0) {
+      ball.y = 0;
+      ball.yVelocity = 1;
     }
 
-    // 네트 충돌
-    const netLeft = NET_X - NET_WIDTH / 2;
-    const netRight = NET_X + NET_WIDTH / 2;
-
-    if (
-      ball.x + ball.radius > netLeft &&
-      ball.x - ball.radius < netRight &&
-      ball.y + ball.radius > NET_TOP
-    ) {
-      if (ball.y - ball.radius < NET_TOP && ball.vy > 0) {
-        // 위에서 내려오는 경우
-        ball.y = NET_TOP - ball.radius;
-        ball.vy = -Math.abs(ball.vy) * BALL_BOUNCE;
-      } else {
-        // 옆에서 오는 경우
-        if (ball.x < NET_X) {
-          ball.x = netLeft - ball.radius;
-          ball.vx = -Math.abs(ball.vx) * BALL_BOUNCE;
-        } else {
-          ball.x = netRight + ball.radius;
-          ball.vx = Math.abs(ball.vx) * BALL_BOUNCE;
+    // 네트 꼭대기 (y: 176~192, |x - 216| < 25)
+    const distFromNet = Math.abs(ball.x - GROUND_HALF_WIDTH);
+    if (distFromNet < NET_PILLAR_HALF_WIDTH) {
+      if (
+        ball.y >= NET_PILLAR_TOP_TOP_Y &&
+        ball.y <= NET_PILLAR_TOP_BOTTOM_Y
+      ) {
+        // 위에서 떨어지는 중이면 바운스
+        if (ball.yVelocity > 0) {
+          ball.yVelocity = -ball.yVelocity;
+          ball.y = NET_PILLAR_TOP_TOP_Y;
         }
       }
-    }
 
-    // 피카츄 충돌
-    this.handlePikachuCollision(ball, this.state.player1);
-    this.handlePikachuCollision(ball, this.state.player2);
-  }
-
-  private handlePikachuCollision(ball: Ball, pikachu: Pikachu): void {
-    const headX = pikachu.x;
-    const headY = pikachu.y - 30;
-
-    const dx = ball.x - headX;
-    const dy = ball.y - headY;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    const minDist = ball.radius + PIKACHU_HEAD_RADIUS;
-
-    if (dist >= minDist || dist === 0) return;
-
-    const nx = dx / dist;
-    const ny = dy / dist;
-
-    // 겹침 해소
-    ball.x = headX + nx * minDist;
-    ball.y = headY + ny * minDist;
-
-    // 반사
-    const relVx = ball.vx - pikachu.vx;
-    const relVy = ball.vy - pikachu.vy;
-    const dot = relVx * nx + relVy * ny;
-
-    if (dot < 0) {
-      const bounce = 1.2;
-      ball.vx = ball.vx - (1 + bounce) * dot * nx + pikachu.vx * 0.5;
-      ball.vy = ball.vy - (1 + bounce) * dot * ny + pikachu.vy * 0.5;
-
-      // 속도 제한
-      const maxSpeed = 15;
-      const speed = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
-      if (speed > maxSpeed) {
-        ball.vx = (ball.vx / speed) * maxSpeed;
-        ball.vy = (ball.vy / speed) * maxSpeed;
+      // 네트 옆면 (y > 192)
+      if (ball.y > NET_PILLAR_TOP_BOTTOM_Y) {
+        if (ball.x < GROUND_HALF_WIDTH) {
+          ball.x = GROUND_HALF_WIDTH - NET_PILLAR_HALF_WIDTH;
+          ball.xVelocity = -Math.abs(ball.xVelocity);
+        } else {
+          ball.x = GROUND_HALF_WIDTH + NET_PILLAR_HALF_WIDTH;
+          ball.xVelocity = Math.abs(ball.xVelocity);
+        }
       }
     }
   }

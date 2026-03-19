@@ -1,350 +1,436 @@
 import {
-  type Ball,
-  type Pikachu,
   type GameState,
-  CANVAS_WIDTH,
-  CANVAS_HEIGHT,
-  GROUND_Y,
+  type SpriteSheet,
+  type SpriteFrame,
+  type PlayerSync,
+  type BallSync,
+  GROUND_WIDTH,
+  GROUND_HEIGHT,
+  GROUND_HALF_WIDTH,
+  PLAYER_LENGTH,
+  PLAYER_HALF_LENGTH,
+  PLAYER_TOUCHING_GROUND_Y,
+  BALL_RADIUS,
+  NET_PILLAR_HALF_WIDTH,
+  NET_PILLAR_TOP_TOP_Y,
+  NET_PILLAR_TOP_BOTTOM_Y,
   NET_X,
-  NET_WIDTH,
-  NET_TOP,
-  PIKACHU_HEAD_RADIUS,
 } from "./types";
 
-export function clearCanvas(ctx: CanvasRenderingContext2D) {
-  // 하늘
-  const skyGrad = ctx.createLinearGradient(0, 0, 0, GROUND_Y);
-  skyGrad.addColorStop(0, "#87CEEB");
-  skyGrad.addColorStop(1, "#B0E0FF");
-  ctx.fillStyle = skyGrad;
-  ctx.fillRect(0, 0, CANVAS_WIDTH, GROUND_Y);
+let spriteSheetImage: HTMLImageElement | null = null;
+let spriteSheetData: SpriteSheet | null = null;
+let assetsLoaded = false;
+let loadingPromise: Promise<void> | null = null;
 
-  // 바닥
-  ctx.fillStyle = "#5B8C5A";
-  ctx.fillRect(0, GROUND_Y, CANVAS_WIDTH, CANVAS_HEIGHT - GROUND_Y);
-
-  // 코트 라인
-  ctx.strokeStyle = "#FFFFFF";
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(0, GROUND_Y);
-  ctx.lineTo(CANVAS_WIDTH, GROUND_Y);
-  ctx.stroke();
+export function isAssetsLoaded(): boolean {
+  return assetsLoaded;
 }
 
-export function drawNet(ctx: CanvasRenderingContext2D) {
-  // 네트 기둥
-  ctx.fillStyle = "#8B6914";
-  ctx.fillRect(NET_X - NET_WIDTH / 2, NET_TOP, NET_WIDTH, GROUND_Y - NET_TOP);
+export async function loadAssets(): Promise<void> {
+  if (assetsLoaded) return;
+  if (loadingPromise) return loadingPromise;
 
-  // 네트 줄
-  ctx.strokeStyle = "#D4AA50";
-  ctx.lineWidth = 1;
-  const meshSize = 10;
-  for (let y = NET_TOP; y < GROUND_Y; y += meshSize) {
-    ctx.beginPath();
-    ctx.moveTo(NET_X - NET_WIDTH / 2, y);
-    ctx.lineTo(NET_X + NET_WIDTH / 2, y);
-    ctx.stroke();
-  }
+  loadingPromise = (async () => {
+    const [jsonRes, img] = await Promise.all([
+      fetch("/assets/sprite_sheet.json").then((r) => r.json()),
+      new Promise<HTMLImageElement>((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve(image);
+        image.onerror = reject;
+        image.src = "/assets/sprite_sheet.png";
+      }),
+    ]);
 
-  // 네트 상단 볼
-  ctx.fillStyle = "#FFFFFF";
-  ctx.beginPath();
-  ctx.arc(NET_X, NET_TOP, 4, 0, Math.PI * 2);
-  ctx.fill();
+    spriteSheetData = jsonRes as SpriteSheet;
+    spriteSheetImage = img;
+    assetsLoaded = true;
+  })();
+
+  return loadingPromise;
 }
 
-export function drawPikachu(
+function getFrame(key: string): SpriteFrame | null {
+  if (!spriteSheetData) return null;
+  return spriteSheetData.frames[key] ?? null;
+}
+
+function drawSprite(
   ctx: CanvasRenderingContext2D,
-  pikachu: Pikachu,
-  isMe: boolean,
+  key: string,
+  dx: number,
+  dy: number,
+  dw?: number,
+  dh?: number,
 ) {
-  const { x, y, side } = pikachu;
-  const dir = side === "left" ? 1 : -1;
+  if (!spriteSheetImage || !spriteSheetData) return;
+  const frame = getFrame(key);
+  if (!frame) return;
+
+  const { x, y, w, h } = frame.frame;
+  ctx.drawImage(
+    spriteSheetImage,
+    x,
+    y,
+    w,
+    h,
+    dx,
+    dy,
+    dw ?? w,
+    dh ?? h,
+  );
+}
+
+function drawTiled(
+  ctx: CanvasRenderingContext2D,
+  key: string,
+  startX: number,
+  startY: number,
+  areaW: number,
+  areaH: number,
+) {
+  const frame = getFrame(key);
+  if (!frame || !spriteSheetImage) return;
+
+  const { x: sx, y: sy, w: sw, h: sh } = frame.frame;
+
+  for (let tx = startX; tx < startX + areaW; tx += sw) {
+    for (let ty = startY; ty < startY + areaH; ty += sh) {
+      const drawW = Math.min(sw, startX + areaW - tx);
+      const drawH = Math.min(sh, startY + areaH - ty);
+      ctx.drawImage(spriteSheetImage, sx, sy, drawW, drawH, tx, ty, drawW, drawH);
+    }
+  }
+}
+
+function drawBackground(ctx: CanvasRenderingContext2D) {
+  // 하늘 (sky_blue 타일)
+  drawTiled(ctx, "objects/sky_blue.png", 0, 0, GROUND_WIDTH, GROUND_HEIGHT);
+
+  // 산
+  drawSprite(ctx, "objects/mountain.png", 0, PLAYER_TOUCHING_GROUND_Y - 64);
+
+  // 바닥 — 노란색 타일 (위쪽 줄)
+  const groundStartY = PLAYER_TOUCHING_GROUND_Y + PLAYER_HALF_LENGTH;
+  drawTiled(
+    ctx,
+    "objects/ground_yellow.png",
+    0,
+    groundStartY,
+    GROUND_WIDTH,
+    16,
+  );
+
+  // 바닥 — 빨간색 타일 (아래쪽)
+  drawTiled(
+    ctx,
+    "objects/ground_red.png",
+    0,
+    groundStartY + 16,
+    GROUND_WIDTH,
+    GROUND_HEIGHT - groundStartY - 16,
+  );
+
+  // 바닥 라인
+  drawSprite(ctx, "objects/ground_line_leftmost.png", 0, groundStartY);
+  for (let x = 16; x < GROUND_WIDTH - 16; x += 16) {
+    drawSprite(ctx, "objects/ground_line.png", x, groundStartY);
+  }
+  drawSprite(
+    ctx,
+    "objects/ground_line_rightmost.png",
+    GROUND_WIDTH - 16,
+    groundStartY,
+  );
+}
+
+function drawNet(ctx: CanvasRenderingContext2D) {
+  const pillarX = NET_X - 4; // 네트 기둥 위치 (8px 너비의 중심)
+  const groundStartY = PLAYER_TOUCHING_GROUND_Y + PLAYER_HALF_LENGTH;
+
+  // 네트 기둥 (위에서 아래로 타일)
+  drawSprite(ctx, "objects/net_pillar_top.png", pillarX, NET_PILLAR_TOP_TOP_Y);
+  for (let y = NET_PILLAR_TOP_BOTTOM_Y; y < groundStartY; y += 8) {
+    drawSprite(ctx, "objects/net_pillar.png", pillarX, y);
+  }
+}
+
+function getPikachuSpriteKey(state: number, frameNumber: number): string {
+  // 프레임 수 제한
+  const maxFrames: Record<number, number> = {
+    0: 5,
+    1: 5,
+    2: 5,
+    3: 2,
+    4: 1,
+    5: 5,
+    6: 5,
+  };
+  const max = maxFrames[state] ?? 1;
+  const clampedFrame = Math.min(frameNumber, max - 1);
+  return `pikachu/pikachu_${state}_${clampedFrame}.png`;
+}
+
+function drawPlayer(
+  ctx: CanvasRenderingContext2D,
+  player: PlayerSync,
+  isP2: boolean,
+) {
+  const spriteKey = getPikachuSpriteKey(player.state, player.frameNumber);
+  const frame = getFrame(spriteKey);
+  if (!frame || !spriteSheetImage) return;
+
+  const { x: sx, y: sy, w: sw, h: sh } = frame.frame;
+
+  // 피카츄의 중심 좌표에서 그리기 위치 계산
+  const dx = player.x - PLAYER_HALF_LENGTH;
+  const dy = player.y - PLAYER_LENGTH + PLAYER_HALF_LENGTH;
 
   ctx.save();
 
-  // 몸통 (타원)
-  ctx.fillStyle = "#FFD700";
-  ctx.beginPath();
-  ctx.ellipse(x, y - 15, 18, 20, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.strokeStyle = "#CC9900";
-  ctx.lineWidth = 1.5;
-  ctx.stroke();
-
-  // 갈색 등줄무늬
-  ctx.fillStyle = "#CC8800";
-  ctx.beginPath();
-  ctx.ellipse(x - dir * 3, y - 18, 6, 10, dir * 0.2, 0, Math.PI * 2);
-  ctx.fill();
-
-  // 머리 (원)
-  const headY = y - 35;
-  ctx.fillStyle = "#FFD700";
-  ctx.beginPath();
-  ctx.arc(x, headY, PIKACHU_HEAD_RADIUS, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.strokeStyle = "#CC9900";
-  ctx.stroke();
-
-  // 귀 (삼각형)
-  const earBaseY = headY - 18;
-  // 왼쪽 귀
-  ctx.fillStyle = "#FFD700";
-  ctx.beginPath();
-  ctx.moveTo(x - 14, earBaseY);
-  ctx.lineTo(x - 22, earBaseY - 28);
-  ctx.lineTo(x - 4, earBaseY - 8);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-  // 귀 끝 검정
-  ctx.fillStyle = "#333";
-  ctx.beginPath();
-  ctx.moveTo(x - 18, earBaseY - 18);
-  ctx.lineTo(x - 22, earBaseY - 28);
-  ctx.lineTo(x - 12, earBaseY - 14);
-  ctx.closePath();
-  ctx.fill();
-
-  // 오른쪽 귀
-  ctx.fillStyle = "#FFD700";
-  ctx.beginPath();
-  ctx.moveTo(x + 14, earBaseY);
-  ctx.lineTo(x + 22, earBaseY - 28);
-  ctx.lineTo(x + 4, earBaseY - 8);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-  ctx.fillStyle = "#333";
-  ctx.beginPath();
-  ctx.moveTo(x + 18, earBaseY - 18);
-  ctx.lineTo(x + 22, earBaseY - 28);
-  ctx.lineTo(x + 12, earBaseY - 14);
-  ctx.closePath();
-  ctx.fill();
-
-  // 눈 (방향에 따라)
-  const eyeOffX = dir * 8;
-  ctx.fillStyle = "#333";
-  ctx.beginPath();
-  ctx.arc(x + eyeOffX - 4, headY - 3, 3.5, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.arc(x + eyeOffX + 8, headY - 3, 3.5, 0, Math.PI * 2);
-  ctx.fill();
-
-  // 눈 하이라이트
-  ctx.fillStyle = "#FFF";
-  ctx.beginPath();
-  ctx.arc(x + eyeOffX - 3, headY - 4.5, 1.5, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.arc(x + eyeOffX + 9, headY - 4.5, 1.5, 0, Math.PI * 2);
-  ctx.fill();
-
-  // 볼 (빨간 동그라미)
-  ctx.fillStyle = "#FF6B6B";
-  ctx.beginPath();
-  ctx.ellipse(x + dir * 18, headY + 5, 5, 4, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  // 입
-  ctx.strokeStyle = "#333";
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.arc(x + dir * 5, headY + 7, 3, 0, Math.PI);
-  ctx.stroke();
-
-  // 꼬리 (번개 모양)
-  const tailX = x - dir * 22;
-  const tailY = y - 20;
-  ctx.fillStyle = "#FFD700";
-  ctx.strokeStyle = "#CC9900";
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.moveTo(tailX, tailY);
-  ctx.lineTo(tailX - dir * 10, tailY - 15);
-  ctx.lineTo(tailX - dir * 4, tailY - 12);
-  ctx.lineTo(tailX - dir * 14, tailY - 30);
-  ctx.lineTo(tailX - dir * 6, tailY - 18);
-  ctx.lineTo(tailX - dir * 12, tailY - 20);
-  ctx.lineTo(tailX, tailY);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-
-  // 내 피카츄 표시
-  if (isMe) {
-    ctx.fillStyle = "rgba(255,255,255,0.9)";
-    ctx.font = "bold 10px sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText("YOU", x, headY - PIKACHU_HEAD_RADIUS - 18);
-
-    // 화살표
-    ctx.fillStyle = "rgba(255,255,255,0.7)";
-    ctx.beginPath();
-    ctx.moveTo(x, headY - PIKACHU_HEAD_RADIUS - 6);
-    ctx.lineTo(x - 5, headY - PIKACHU_HEAD_RADIUS - 12);
-    ctx.lineTo(x + 5, headY - PIKACHU_HEAD_RADIUS - 12);
-    ctx.closePath();
-    ctx.fill();
+  if (isP2) {
+    // P2는 좌우 반전
+    ctx.translate(player.x, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(
+      spriteSheetImage,
+      sx,
+      sy,
+      sw,
+      sh,
+      -PLAYER_HALF_LENGTH,
+      dy,
+      PLAYER_LENGTH,
+      PLAYER_LENGTH,
+    );
+  } else {
+    ctx.drawImage(
+      spriteSheetImage,
+      sx,
+      sy,
+      sw,
+      sh,
+      dx,
+      dy,
+      PLAYER_LENGTH,
+      PLAYER_LENGTH,
+    );
   }
 
   ctx.restore();
 }
 
-export function drawBall(ctx: CanvasRenderingContext2D, ball: Ball) {
-  const { x, y, radius } = ball;
-
-  // 그림자
-  ctx.fillStyle = "rgba(0,0,0,0.15)";
-  ctx.beginPath();
-  ctx.ellipse(x, GROUND_Y + 2, radius * 0.8, 4, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  // 공 본체 (흰색)
-  ctx.fillStyle = "#FFFFFF";
-  ctx.beginPath();
-  ctx.arc(x, y, radius, 0, Math.PI * 2);
-  ctx.fill();
-
-  // 외곽선
-  ctx.strokeStyle = "#CCCCCC";
-  ctx.lineWidth = 1.5;
-  ctx.stroke();
-
-  // 배구공 줄무늬
-  ctx.strokeStyle = "#DDDDDD";
-  ctx.lineWidth = 1;
-
-  ctx.beginPath();
-  ctx.arc(x, y, radius * 0.85, -0.3, Math.PI + 0.3);
-  ctx.stroke();
-
-  ctx.beginPath();
-  ctx.arc(x, y, radius * 0.85, Math.PI / 2 - 0.3, Math.PI * 1.5 + 0.3);
-  ctx.stroke();
-
-  // 하이라이트
-  ctx.fillStyle = "rgba(255,255,255,0.6)";
-  ctx.beginPath();
-  ctx.arc(x - radius * 0.3, y - radius * 0.3, radius * 0.25, 0, Math.PI * 2);
-  ctx.fill();
+function drawShadow(ctx: CanvasRenderingContext2D, x: number) {
+  const groundY = PLAYER_TOUCHING_GROUND_Y + PLAYER_HALF_LENGTH;
+  drawSprite(ctx, "objects/shadow.png", x - 16, groundY - 4);
 }
 
-export function drawScore(
+function drawBall(ctx: CanvasRenderingContext2D, ball: BallSync) {
+  if (!spriteSheetImage) return;
+
+  let spriteKey: string;
+
+  if (ball.fineRotation === 50) {
+    // 하이퍼볼
+    spriteKey = "ball/ball_hyper.png";
+  } else {
+    // 일반 회전 (0~4)
+    const rotFrame = Math.abs(ball.rotation) % 5;
+    spriteKey = `ball/ball_${rotFrame}.png`;
+  }
+
+  const frame = getFrame(spriteKey);
+  if (!frame) return;
+
+  const { x: sx, y: sy, w: sw, h: sh } = frame.frame;
+
+  // 파워히트 잔상
+  if (ball.isPowerHit) {
+    const trailFrame = getFrame("ball/ball_trail.png");
+    if (trailFrame) {
+      ctx.globalAlpha = 0.5;
+      ctx.drawImage(
+        spriteSheetImage,
+        trailFrame.frame.x,
+        trailFrame.frame.y,
+        trailFrame.frame.w,
+        trailFrame.frame.h,
+        ball.x - BALL_RADIUS - ball.xVelocity,
+        ball.y - BALL_RADIUS - ball.yVelocity,
+        40,
+        40,
+      );
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  ctx.drawImage(
+    spriteSheetImage,
+    sx,
+    sy,
+    sw,
+    sh,
+    ball.x - BALL_RADIUS,
+    ball.y - BALL_RADIUS,
+    40,
+    40,
+  );
+
+  // 파워히트 이펙트
+  if (ball.isPowerHit) {
+    const punchFrame = getFrame("ball/ball_punch.png");
+    if (punchFrame) {
+      ctx.drawImage(
+        spriteSheetImage,
+        punchFrame.frame.x,
+        punchFrame.frame.y,
+        punchFrame.frame.w,
+        punchFrame.frame.h,
+        ball.x - BALL_RADIUS,
+        ball.y - BALL_RADIUS,
+        40,
+        40,
+      );
+    }
+  }
+}
+
+function drawBallShadow(ctx: CanvasRenderingContext2D, ballX: number) {
+  const groundY = PLAYER_TOUCHING_GROUND_Y + PLAYER_HALF_LENGTH;
+  drawSprite(ctx, "objects/shadow.png", ballX - 16, groundY - 4);
+}
+
+function drawScoreNumber(
+  ctx: CanvasRenderingContext2D,
+  num: number,
+  x: number,
+  y: number,
+) {
+  if (num < 10) {
+    drawSprite(ctx, `number/number_${num}.png`, x, y);
+  } else {
+    const tens = Math.floor(num / 10);
+    const ones = num % 10;
+    drawSprite(ctx, `number/number_${tens}.png`, x - 16, y);
+    drawSprite(ctx, `number/number_${ones}.png`, x + 16, y);
+  }
+}
+
+function drawScore(
   ctx: CanvasRenderingContext2D,
   score: { left: number; right: number },
 ) {
-  ctx.save();
-
-  // 배경
-  ctx.fillStyle = "rgba(0,0,0,0.5)";
-  const boxW = 160;
-  const boxH = 40;
-  const boxX = CANVAS_WIDTH / 2 - boxW / 2;
-  ctx.beginPath();
-  ctx.roundRect(boxX, 8, boxW, boxH, 8);
-  ctx.fill();
-
-  ctx.fillStyle = "#FFFFFF";
-  ctx.font = "bold 24px 'Courier New', monospace";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(`${score.left}`, CANVAS_WIDTH / 2 - 35, 28);
-  ctx.fillText("-", CANVAS_WIDTH / 2, 28);
-  ctx.fillText(`${score.right}`, CANVAS_WIDTH / 2 + 35, 28);
-
-  ctx.restore();
+  // P1 스코어 — 왼쪽 상단
+  drawScoreNumber(ctx, score.left, 68, 8);
+  // P2 스코어 — 오른쪽 상단
+  drawScoreNumber(ctx, score.right, GROUND_WIDTH - 68 - 32, 8);
 }
 
-export function drawWaiting(ctx: CanvasRenderingContext2D, message: string) {
-  ctx.save();
-  ctx.fillStyle = "rgba(0,0,0,0.6)";
-  ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-
-  ctx.fillStyle = "#FFFFFF";
-  ctx.font = "bold 28px sans-serif";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(message, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
-  ctx.restore();
-}
-
-export function drawScoredOverlay(
+function drawMessage(
   ctx: CanvasRenderingContext2D,
-  scorer: string,
+  messageKey: string,
 ) {
-  ctx.save();
-  ctx.fillStyle = "rgba(0,0,0,0.4)";
-  ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+  const frame = getFrame(messageKey);
+  if (!frame || !spriteSheetImage) return;
 
-  ctx.fillStyle = "#FFD700";
-  ctx.font = "bold 36px sans-serif";
+  const { x: sx, y: sy, w: sw, h: sh } = frame.frame;
+  const dx = (GROUND_WIDTH - sw) / 2;
+  const dy = (GROUND_HEIGHT - sh) / 2 - 20;
+
+  ctx.drawImage(spriteSheetImage, sx, sy, sw, sh, dx, dy, sw, sh);
+}
+
+function drawWaitingText(ctx: CanvasRenderingContext2D) {
+  ctx.save();
+  ctx.fillStyle = "rgba(0,0,0,0.5)";
+  ctx.fillRect(0, 0, GROUND_WIDTH, GROUND_HEIGHT);
+
+  ctx.fillStyle = "#FFFFFF";
+  ctx.font = "bold 14px sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText(`${scorer} SCORED!`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
-
-  ctx.font = "16px sans-serif";
-  ctx.fillStyle = "#FFFFFF";
-  ctx.fillText("Ready for next serve...", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 40);
+  ctx.fillText(
+    "Waiting for opponent...",
+    GROUND_WIDTH / 2,
+    GROUND_HEIGHT / 2,
+  );
   ctx.restore();
 }
 
-export function drawGameOver(
+function drawGameOverOverlay(
   ctx: CanvasRenderingContext2D,
   winner: string,
   score: { left: number; right: number },
 ) {
   ctx.save();
-  ctx.fillStyle = "rgba(0,0,0,0.7)";
-  ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+  ctx.fillStyle = "rgba(0,0,0,0.6)";
+  ctx.fillRect(0, 0, GROUND_WIDTH, GROUND_HEIGHT);
+
+  // "GAME END" 메시지 (스프라이트)
+  drawMessage(ctx, "messages/common/game_end.png");
 
   ctx.fillStyle = "#FFD700";
-  ctx.font = "bold 42px sans-serif";
+  ctx.font = "bold 16px sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText("GAME OVER", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 40);
+  ctx.fillText(
+    `${winner} WINS!`,
+    GROUND_WIDTH / 2,
+    GROUND_HEIGHT / 2 + 20,
+  );
 
-  ctx.fillStyle = "#FFFFFF";
-  ctx.font = "bold 28px sans-serif";
-  ctx.fillText(`${winner} WINS!`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 10);
-
-  ctx.font = "24px monospace";
-  ctx.fillText(`${score.left} - ${score.right}`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 50);
-
-  ctx.font = "14px sans-serif";
+  ctx.font = "10px sans-serif";
   ctx.fillStyle = "#AAA";
-  ctx.fillText("Press any key to return to lobby", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 85);
+  ctx.fillText(
+    "Press any key to return",
+    GROUND_WIDTH / 2,
+    GROUND_HEIGHT / 2 + 50,
+  );
   ctx.restore();
 }
 
 export function render(ctx: CanvasRenderingContext2D, state: GameState) {
-  clearCanvas(ctx);
+  if (!assetsLoaded) return;
+
+  ctx.clearRect(0, 0, GROUND_WIDTH, GROUND_HEIGHT);
+
+  // 배경
+  drawBackground(ctx);
+
+  // 네트
   drawNet(ctx);
 
-  if (state.phase === "playing" || state.phase === "scored" || state.phase === "gameOver") {
-    drawPikachu(ctx, state.player1, state.mySide === "left");
-    drawPikachu(ctx, state.player2, state.mySide === "right");
+  if (
+    state.phase === "playing" ||
+    state.phase === "scored" ||
+    state.phase === "gameOver"
+  ) {
+    // 그림자
+    drawShadow(ctx, state.player1.x);
+    drawShadow(ctx, state.player2.x);
+    drawBallShadow(ctx, state.ball.x);
+
+    // 피카츄
+    drawPlayer(ctx, state.player1, false);
+    drawPlayer(ctx, state.player2, true);
+
+    // 공
     drawBall(ctx, state.ball);
+
+    // 점수
     drawScore(ctx, state.score);
   }
 
   if (state.phase === "waiting") {
-    drawWaiting(ctx, "Waiting for opponent...");
+    drawWaitingText(ctx);
   }
 
   if (state.phase === "scored") {
-    // 누가 득점했는지 표시
-    const lastScorer = state.servingSide === "left" ? "P1" : "P2";
-    drawScoredOverlay(ctx, lastScorer);
+    // "READY" 메시지 표시
+    drawMessage(ctx, "messages/common/ready.png");
   }
 
   if (state.phase === "gameOver" && state.winner) {
     const winnerLabel = state.winner === state.mySide ? "YOU" : "OPPONENT";
-    drawGameOver(ctx, winnerLabel, state.score);
+    drawGameOverOverlay(ctx, winnerLabel, state.score);
   }
 }

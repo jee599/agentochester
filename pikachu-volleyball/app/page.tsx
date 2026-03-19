@@ -16,7 +16,6 @@ export default function Home() {
       switch (msg.type) {
         case "roomCreated":
         case "roomJoined":
-          // 방에 입장하면 게임 페이지로 이동, side/roomId를 쿼리로 전달
           router.push(`/game?roomId=${msg.roomId}&side=${msg.side}`);
           break;
         case "roomList":
@@ -54,11 +53,13 @@ export default function Home() {
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-4">
-      <div className="mb-8 text-center">
-        <h1 className="mb-1 text-4xl font-bold text-yellow-400">
-          Pikachu Volleyball
+      <div className="mb-6 text-center">
+        <h1 className="mb-1 font-mono text-3xl font-bold tracking-tight text-yellow-400">
+          PIKACHU VOLLEYBALL
         </h1>
-        <p className="text-sm text-gray-400">Multiplayer — First to 15 wins!</p>
+        <p className="font-mono text-xs text-gray-600">
+          Multiplayer — First to 15 wins
+        </p>
       </div>
 
       <Lobby

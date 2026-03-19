@@ -6,7 +6,7 @@ import GameCanvas from "@/components/GameCanvas";
 import ScoreBoard from "@/components/ScoreBoard";
 import { getSocket } from "@/lib/socket/client";
 import { InputManager } from "@/lib/game/input";
-import { createInitialGameState, tickGameLocally } from "@/lib/game/engine";
+import { createInitialGameState } from "@/lib/game/engine";
 import {
   type GameState,
   type PlayerSide,
@@ -31,53 +31,51 @@ function GameContent() {
   gameStateRef.current = gameState;
 
   const inputManagerRef = useRef<InputManager | null>(null);
-  const frameRef = useRef<number>(0);
+  const inputTickRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastInputRef = useRef<string>("");
 
-  const handleMessage = useCallback(
-    (msg: ServerMessage) => {
-      switch (msg.type) {
-        case "gameStart":
-          setGameState((prev) => ({ ...prev, phase: "playing" }));
-          break;
+  const handleMessage = useCallback((msg: ServerMessage) => {
+    switch (msg.type) {
+      case "gameStart":
+        setGameState((prev) => ({ ...prev, phase: "playing" }));
+        break;
 
-        case "gameState":
-          setGameState((prev) => ({
-            ...prev,
-            ball: msg.state.ball,
-            player1: msg.state.player1,
-            player2: msg.state.player2,
-            score: msg.state.score,
-            phase: msg.state.phase,
-            servingSide: msg.state.servingSide,
-          }));
-          break;
+      case "gameState":
+        // 서버에서 받은 상태를 그대로 반영 (로컬 예측 불필요)
+        setGameState((prev) => ({
+          ...prev,
+          player1: msg.state.player1,
+          player2: msg.state.player2,
+          ball: msg.state.ball,
+          score: msg.state.score,
+          phase: msg.state.phase,
+          servingSide: msg.state.servingSide,
+        }));
+        break;
 
-        case "scored":
-          setGameState((prev) => ({
-            ...prev,
-            score: msg.score,
-            servingSide: msg.scorer,
-            phase: "scored",
-          }));
-          break;
+      case "scored":
+        setGameState((prev) => ({
+          ...prev,
+          score: msg.score,
+          servingSide: msg.scorer,
+          phase: "scored",
+        }));
+        break;
 
-        case "gameOver":
-          setGameState((prev) => ({
-            ...prev,
-            score: msg.score,
-            winner: msg.winner,
-            phase: "gameOver",
-          }));
-          break;
+      case "gameOver":
+        setGameState((prev) => ({
+          ...prev,
+          score: msg.score,
+          winner: msg.winner,
+          phase: "gameOver",
+        }));
+        break;
 
-        case "opponentDisconnected":
-          setGameState((prev) => ({ ...prev, phase: "waiting" }));
-          break;
-      }
-    },
-    [],
-  );
+      case "opponentDisconnected":
+        setGameState((prev) => ({ ...prev, phase: "waiting" }));
+        break;
+    }
+  }, []);
 
   useEffect(() => {
     if (!roomId || !side) {
@@ -88,93 +86,71 @@ function GameContent() {
     const socket = getSocket();
     const unsub = socket.onMessage(handleMessage);
 
-    // 서버에 준비 완료 알림
     socket.send({ type: "ready" });
 
     const inputManager = new InputManager();
     inputManager.attach();
     inputManagerRef.current = inputManager;
 
+    // 입력을 서버 FPS(25fps = 40ms)에 맞춰 전송
+    inputTickRef.current = setInterval(() => {
+      const currentState = gameStateRef.current;
+      if (currentState.phase !== "playing") return;
+
+      const input = inputManager.getInput();
+      const inputKey = `${input.left}${input.right}${input.jump}${input.powerHit}`;
+
+      if (inputKey !== lastInputRef.current) {
+        socket.send({ type: "input", input });
+        lastInputRef.current = inputKey;
+      }
+    }, 40);
+
     return () => {
       unsub();
       inputManager.detach();
+      if (inputTickRef.current) clearInterval(inputTickRef.current);
     };
   }, [roomId, side, router, handleMessage]);
 
-  // 게임 루프
+  // 게임오버 시 아무 키로 로비 복귀
   useEffect(() => {
-    const socket = getSocket();
+    if (gameState.phase !== "gameOver") return;
 
-    const tick = () => {
-      const input = inputManagerRef.current?.getInput() ?? {
-        left: false,
-        right: false,
-        jump: false,
-      };
-
-      const currentState = gameStateRef.current;
-
-      if (currentState.phase === "playing") {
-        // 로컬 예측
-        const predicted = tickGameLocally(currentState, input);
-        setGameState(predicted);
-
-        // 입력 변경 시에만 서버에 전송
-        const inputKey = `${input.left}${input.right}${input.jump}`;
-        if (inputKey !== lastInputRef.current) {
-          socket.send({ type: "input", input });
-          lastInputRef.current = inputKey;
-        }
-      }
-
-      // 게임오버 상태에서 아무 키 누르면 로비로
-      if (currentState.phase === "gameOver") {
-        if (inputManagerRef.current?.isAnyKeyPressed()) {
-          router.push("/");
-          return;
-        }
-      }
-
-      frameRef.current = requestAnimationFrame(tick);
+    const handleKey = () => {
+      router.push("/");
     };
 
-    frameRef.current = requestAnimationFrame(tick);
+    // 살짝 딜레이를 주어 즉시 복귀 방지
+    const timer = setTimeout(() => {
+      window.addEventListener("keydown", handleKey, { once: true });
+    }, 1000);
 
     return () => {
-      cancelAnimationFrame(frameRef.current);
+      clearTimeout(timer);
+      window.removeEventListener("keydown", handleKey);
     };
-  }, [router]);
+  }, [gameState.phase, router]);
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-4 p-4">
-      <div className="text-center">
-        <h1 className="text-2xl font-bold text-yellow-400">
-          Pikachu Volleyball
-        </h1>
-        {roomId && (
-          <p className="font-mono text-xs text-gray-500">
-            Room: {roomId}
-          </p>
-        )}
-      </div>
+    <main className="flex min-h-screen flex-col items-center justify-center gap-2 p-4">
+      <h1 className="font-mono text-lg font-bold tracking-tight text-yellow-400">
+        PIKACHU VOLLEYBALL
+      </h1>
 
-      <ScoreBoard
-        leftScore={gameState.score.left}
-        rightScore={gameState.score.right}
-        mySide={gameState.mySide}
-      />
+      <ScoreBoard roomId={gameState.roomId} mySide={gameState.mySide} />
 
       <GameCanvas gameState={gameState} />
 
       {gameState.phase === "waiting" && (
-        <p className="animate-pulse text-sm text-gray-400">
-          Waiting for opponent to join...
+        <p className="animate-pulse font-mono text-xs text-gray-500">
+          Waiting for opponent...
         </p>
       )}
 
       {gameState.phase === "playing" && (
-        <p className="text-xs text-gray-600">
-          Arrow Keys / WASD to move | Up / W / Space to jump
+        <p className="font-mono text-[10px] text-gray-700">
+          Arrows/WASD: move | Up/W/Space: jump | D: power hit
         </p>
       )}
     </main>
@@ -183,11 +159,13 @@ function GameContent() {
 
 export default function GamePage() {
   return (
-    <Suspense fallback={
-      <main className="flex min-h-screen items-center justify-center">
-        <p className="text-gray-400">Loading...</p>
-      </main>
-    }>
+    <Suspense
+      fallback={
+        <main className="flex min-h-screen items-center justify-center">
+          <p className="text-gray-500">Loading...</p>
+        </main>
+      }
+    >
       <GameContent />
     </Suspense>
   );

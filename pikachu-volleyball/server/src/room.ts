@@ -6,6 +6,7 @@ import { TICK_INTERVAL } from './types.js';
 interface Player {
   ws: WebSocket;
   side: PlayerSide;
+  ready: boolean;
 }
 
 interface Room {
@@ -47,13 +48,13 @@ function startGameLoop(room: Room): void {
   room.tickInterval = setInterval(() => {
     if (!room.game) return;
 
-    // 라운드 오버 딜레이 중이면 카운트다운만
+    // 라운드 오버 딜레이 중이면 카운트다운
     if (roundOverFrames > 0) {
       roundOverFrames--;
       if (roundOverFrames === 0) {
-        room.game.resetRound(room.game.state.servingSide);
+        room.game.resetRound(room.game.servingSide);
       }
-      broadcast(room, { type: 'gameState', state: room.game.state });
+      broadcast(room, { type: 'gameState', state: room.game.getState() });
       return;
     }
 
@@ -62,26 +63,29 @@ function startGameLoop(room: Room): void {
     if (scoreEvent) {
       const gameOver = room.game.isGameOver();
       if (gameOver) {
+        room.game.phase = 'gameOver';
         broadcast(room, {
           type: 'gameOver',
           winner: gameOver.winner,
-          score: room.game.state.score,
+          score: { ...room.game.score },
         });
         stopGameLoop(room);
         setTimeout(() => destroyRoom(room.id), 5000);
       } else {
+        room.game.phase = 'scored';
+        room.game.servingSide = scoreEvent.scorer;
         broadcast(room, {
           type: 'scored',
           scorer: scoreEvent.scorer,
-          score: room.game.state.score,
+          score: { ...room.game.score },
         });
-        room.game.state.servingSide = scoreEvent.scorer;
-        roundOverFrames = 60; // 1초 대기
+        roundOverFrames = 25; // 1초 대기 (25fps)
       }
+      broadcast(room, { type: 'gameState', state: room.game.getState() });
       return;
     }
 
-    broadcast(room, { type: 'gameState', state: room.game.state });
+    broadcast(room, { type: 'gameState', state: room.game.getState() });
   }, TICK_INTERVAL);
 }
 
@@ -103,7 +107,7 @@ export function createRoom(ws: WebSocket): void {
   const roomId = generateRoomId();
   const room: Room = {
     id: roomId,
-    players: [{ ws, side: 'left' }],
+    players: [{ ws, side: 'left', ready: false }],
     game: null,
     tickInterval: null,
   };
@@ -122,7 +126,7 @@ export function joinRoom(ws: WebSocket, roomId: string): void {
     return;
   }
 
-  room.players.push({ ws, side: 'right' });
+  room.players.push({ ws, side: 'right', ready: false });
   send(ws, { type: 'roomJoined', roomId, side: 'right' });
 
   // 두 명 다 들어왔으면 게임 시작
@@ -139,16 +143,6 @@ export function handleInput(ws: WebSocket, input: InputState): void {
   if (!player) return;
 
   room.game.inputs[player.side] = input;
-}
-
-export function listRooms(ws: WebSocket): void {
-  const roomList: RoomInfo[] = [];
-  for (const [, room] of rooms) {
-    if (room.players.length < 2) {
-      roomList.push({ id: room.id, playerCount: room.players.length });
-    }
-  }
-  send(ws, { type: 'roomList', rooms: roomList });
 }
 
 export function handleDisconnect(ws: WebSocket): void {

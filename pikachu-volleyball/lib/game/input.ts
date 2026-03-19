@@ -21,8 +21,19 @@ export class InputManager {
   }
 
   private onKeyDown(e: KeyboardEvent) {
-    // 게임 키는 기본 동작 방지
-    if (["ArrowLeft", "ArrowRight", "ArrowUp", " ", "w", "a", "d"].includes(e.key)) {
+    if (
+      [
+        "ArrowLeft",
+        "ArrowRight",
+        "ArrowUp",
+        "ArrowDown",
+        " ",
+        "w",
+        "a",
+        "s",
+        "d",
+      ].includes(e.key)
+    ) {
       e.preventDefault();
     }
     this.keys.add(e.key);
@@ -33,15 +44,23 @@ export class InputManager {
   }
 
   getInput(): InputState {
-    return {
-      left: this.keys.has("ArrowLeft") || this.keys.has("a") || this.keys.has("A"),
-      right: this.keys.has("ArrowRight") || this.keys.has("d") || this.keys.has("D"),
-      jump:
-        this.keys.has("ArrowUp") ||
-        this.keys.has(" ") ||
-        this.keys.has("w") ||
-        this.keys.has("W"),
-    };
+    const left =
+      this.keys.has("ArrowLeft") || this.keys.has("a") || this.keys.has("A");
+    const right =
+      this.keys.has("ArrowRight") || this.keys.has("d") || this.keys.has("D");
+    const jump =
+      this.keys.has("ArrowUp") ||
+      this.keys.has(" ") ||
+      this.keys.has("w") ||
+      this.keys.has("W");
+
+    // powerHit: D키 단독 또는 →+↑ 동시
+    const powerHit =
+      this.keys.has("d") ||
+      this.keys.has("D") ||
+      (this.keys.has("ArrowRight") && this.keys.has("ArrowUp"));
+
+    return { left, right, jump, powerHit };
   }
 
   isAnyKeyPressed(): boolean {

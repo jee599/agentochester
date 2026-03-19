@@ -54,23 +54,37 @@ async function cmdInit(): Promise<void> {
     console.log(`  Copied ${files.length} builtin agents`);
   }
 
-  // 2. Copy or symlink external agents
-  if (fs.existsSync(EXTERNAL_DIR)) {
-    const agrExternalDir = path.join(agrDir, 'external', 'agency-agents');
+  // 2. Download external agents (agency-agents)
+  const agrExternalDir = path.join(agrDir, 'external', 'agency-agents');
+  if (!fs.existsSync(agrExternalDir)) {
     fs.mkdirSync(path.join(agrDir, 'external'), { recursive: true });
+    console.log('  Downloading 172 external agents (agency-agents)...');
 
-    if (!fs.existsSync(agrExternalDir)) {
-      try {
-        fs.symlinkSync(EXTERNAL_DIR, agrExternalDir, 'dir');
-        console.log('  Linked external agents (agency-agents)');
-      } catch {
-        // Fallback: copy recursively
-        copyDirRecursive(EXTERNAL_DIR, agrExternalDir);
-        console.log('  Copied external agents (agency-agents)');
+    try {
+      const git = spawn('git', ['clone', '--depth', '1', 'https://github.com/msitarzewski/agency-agents.git', agrExternalDir], {
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+
+      await new Promise<void>((resolve, reject) => {
+        git.on('close', (code) => {
+          if (code === 0) resolve();
+          else reject(new Error(`git clone failed with code ${code}`));
+        });
+        git.on('error', reject);
+      });
+
+      // Remove .git to save space
+      const gitDir = path.join(agrExternalDir, '.git');
+      if (fs.existsSync(gitDir)) {
+        fs.rmSync(gitDir, { recursive: true, force: true });
       }
-    } else {
-      console.log('  External agents already exist, skipping');
+
+      console.log('  ✓ Downloaded external agents');
+    } catch {
+      console.log('  ⚠ Failed to download external agents (git required). Continuing with builtin only.');
     }
+  } else {
+    console.log('  External agents already exist, skipping');
   }
 
   // 3. Build catalog to count agents

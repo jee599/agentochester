@@ -1,27 +1,23 @@
 "use client";
 
+// 점수는 캔버스 내부에서 스프라이트로 렌더링하므로
+// 이 컴포넌트는 방 정보와 사이드 표시만 담당
 interface ScoreBoardProps {
-  leftScore: number;
-  rightScore: number;
+  roomId: string | null;
   mySide: "left" | "right" | null;
 }
 
-export default function ScoreBoard({ leftScore, rightScore, mySide }: ScoreBoardProps) {
+export default function ScoreBoard({ roomId, mySide }: ScoreBoardProps) {
   return (
-    <div className="flex items-center justify-center gap-6 py-2">
-      <div className={`flex flex-col items-center ${mySide === "left" ? "text-yellow-400" : "text-white"}`}>
-        <span className="text-xs font-medium uppercase tracking-wide">
-          {mySide === "left" ? "You" : "Opponent"}
+    <div className="flex items-center justify-center gap-4 py-1 text-xs text-gray-500">
+      {roomId && (
+        <span className="font-mono">Room: {roomId}</span>
+      )}
+      {mySide && (
+        <span>
+          You: <span className="font-bold text-yellow-400">{mySide === "left" ? "P1" : "P2"}</span>
         </span>
-        <span className="text-3xl font-bold tabular-nums">{leftScore}</span>
-      </div>
-      <span className="text-2xl text-gray-400">:</span>
-      <div className={`flex flex-col items-center ${mySide === "right" ? "text-yellow-400" : "text-white"}`}>
-        <span className="text-xs font-medium uppercase tracking-wide">
-          {mySide === "right" ? "You" : "Opponent"}
-        </span>
-        <span className="text-3xl font-bold tabular-nums">{rightScore}</span>
-      </div>
+      )}
     </div>
   );
 }

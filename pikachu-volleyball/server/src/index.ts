@@ -1,5 +1,5 @@
 import { WebSocketServer } from 'ws';
-import { createRoom, joinRoom, handleInput, listRooms, handleDisconnect } from './room.js';
+import { createRoom, joinRoom, handleInput, handleDisconnect } from './room.js';
 import type { ClientMessage } from './types.js';
 
 const PORT = 3001;
@@ -31,7 +31,7 @@ wss.on('connection', (ws) => {
         handleInput(ws, msg.input);
         break;
       case 'ready':
-        // 클라이언트 준비 완료 — 현재는 무시 (joinRoom에서 자동 시작)
+        // 클라이언트 준비 완료 — 현재는 joinRoom에서 자동 시작
         break;
       default:
         ws.send(JSON.stringify({ type: 'error', message: 'Unknown message type' }));
