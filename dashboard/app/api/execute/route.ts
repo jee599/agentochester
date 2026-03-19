@@ -105,6 +105,8 @@ export async function POST(request: NextRequest) {
         })),
       });
 
+      const collectedOutputs: Array<{ role: string; agentName: string; action: string; output: string; success: boolean }> = [];
+
       for (const { task, agent } of executable) {
         send("task_start", {
           taskId: task.id,
@@ -112,11 +114,6 @@ export async function POST(request: NextRequest) {
           agentName: agent!.name,
           status: "running",
         });
-
-        if (false) {
-          // Dependencies check disabled — all tasks run independently
-          continue;
-        }
 
         const agentPrompt = [
           `You are ${agent!.name} (${agent!.role}).`,
@@ -131,6 +128,14 @@ export async function POST(request: NextRequest) {
           send("task_output", { taskId: task.id, chunk });
         });
 
+        collectedOutputs.push({
+          role: task.role,
+          agentName: agent!.name,
+          action: task.action,
+          output: result.output.slice(0, 2000),
+          success: result.success,
+        });
+
         send("task_done", {
           taskId: task.id,
           status: result.success ? "success" : "error",
@@ -139,6 +144,48 @@ export async function POST(request: NextRequest) {
           durationMs: result.durationMs,
         });
       }
+
+      // Orchestrator — synthesize all agent outputs
+      send("task_start", {
+        taskId: "orchestrator",
+        role: "orchestrator",
+        agentName: "Orchestrator",
+        status: "running",
+      });
+
+      const agentResults = collectedOutputs
+        .map((o) => `## ${o.agentName} (${o.role})\nTask: ${o.action}\nStatus: ${o.success ? "SUCCESS" : "FAILED"}\nOutput:\n${o.output}`)
+        .join("\n\n---\n\n");
+
+      const orchestratorPrompt = `You are the Orchestrator — the final synthesizer of a multi-agent team.
+
+Original request: "${prompt}"
+
+${collectedOutputs.length} agents executed. Here are their results:
+
+${agentResults}
+
+Now produce a FINAL SYNTHESIS:
+1. Summary of what each agent produced
+2. How all pieces connect together
+3. Gaps or conflicts between agent outputs
+4. Concrete next steps (prioritized)
+
+Write in the same language as the original request. Be structured and actionable.`;
+
+      const orchResult = await runClaude(orchestratorPrompt, cwd, (chunk) => {
+        send("task_output", { taskId: "orchestrator", chunk });
+      });
+
+      send("task_done", {
+        taskId: "orchestrator",
+        role: "orchestrator",
+        agentName: "Orchestrator",
+        status: orchResult.success ? "success" : "error",
+        output: orchResult.output,
+        error: orchResult.error,
+        durationMs: orchResult.durationMs,
+      });
 
       send("done", { totalDurationMs: Date.now() - totalStart });
       controller.close();
