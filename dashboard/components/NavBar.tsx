@@ -13,6 +13,7 @@ export default function NavBar() {
   const navItems = [
     { href: "/", label: t("nav.dashboard") },
     { href: "/agents", label: t("nav.agents") },
+    { href: "/terminal", label: "Terminal" },
   ];
 
   return (
