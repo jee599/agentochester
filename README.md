@@ -12,7 +12,7 @@
 <p align="center">
   <a href="https://www.npmjs.com/package/agentcrow"><img src="https://img.shields.io/npm/v/agentcrow?style=flat-square&color=violet" alt="npm" /></a>
   <img src="https://img.shields.io/badge/agents-9_builtin-brightgreen?style=flat-square" alt="Agents" />
-  <img src="https://img.shields.io/badge/tests-70_passing-brightgreen?style=flat-square" alt="Tests" />
+  <img src="https://img.shields.io/badge/tests-61_passing-brightgreen?style=flat-square" alt="Tests" />
   <a href="LICENSE"><img src="https://img.shields.io/github/license/jee599/agentcrow?style=flat-square" alt="License" /></a>
 </p>
 
@@ -128,8 +128,11 @@ npx agentcrow init
 
 That's it. This creates:
 - `.agr/agents/` — 9 builtin agents + external agents from agency-agents
-- `.claude/CLAUDE.md` — auto-dispatch instructions for Claude
+- `.claude/CLAUDE.md` — auto-dispatch instructions (merges with your existing CLAUDE.md)
 - `.claude/settings.local.json` — SessionStart hook
+
+> [!NOTE]
+> Already have a CLAUDE.md? AgentCrow **appends** its section — your existing rules are preserved.
 
 > [!TIP]
 > AgentCrow downloads external agents from [agency-agents](https://github.com/msitarzewski/agency-agents) on first init. Requires `git`.
@@ -179,7 +182,8 @@ No API key. No server. Just Claude Code + CLAUDE.md.
 ## 🔧 Commands
 
 ```bash
-npx agentcrow init              # Set up agents + CLAUDE.md
+npx agentcrow init              # Set up agents + CLAUDE.md (English default)
+npx agentcrow init --lang ko    # Korean template
 npx agentcrow status            # Check if active
 npx agentcrow off               # Disable temporarily
 npx agentcrow on                # Re-enable
@@ -218,7 +222,7 @@ Simple prompts run normally. AgentCrow only activates for multi-task requests.
 
 ```bash
 git clone --recursive https://github.com/jee599/agentcrow.git
-cd agentochester && npm install && npm test  # 70 tests
+cd agentcrow && npm install && npm test  # 61 tests
 ```
 
 ## 📜 License
