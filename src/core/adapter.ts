@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, existsSync, statSync } from 'node:fs';
+import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join, basename } from 'node:path';
 import type { AgentDefinition, AgentIdentity, AgentCriticalRules } from './types.js';
 

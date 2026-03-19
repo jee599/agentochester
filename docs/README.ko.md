@@ -5,14 +5,14 @@
 </h1>
 
 <h3 align="center">
-  프롬프트 하나 치면, AgentCrow가 144개 전문 에이전트로 쪼개서 실행한다.<br>
+  프롬프트 하나 치면, AgentCrow가 전문 에이전트로 쪼개서 실행한다. 9개 빌트인 + 외부 에이전트.<br>
   <code>npx agentcrow init</code> → <code>claude</code> → 자동 디스패치.
 </h3>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/agentcrow"><img src="https://img.shields.io/npm/v/agentcrow?style=flat-square&color=violet" alt="npm" /></a>
-  <img src="https://img.shields.io/badge/agents-144_ready-brightgreen?style=flat-square" alt="Agents" />
-  <img src="https://img.shields.io/badge/tests-70_passing-brightgreen?style=flat-square" alt="Tests" />
+  <img src="https://img.shields.io/badge/agents-9_builtin-brightgreen?style=flat-square" alt="Agents" />
+  <img src="https://img.shields.io/badge/tests-60_passing-brightgreen?style=flat-square" alt="Tests" />
   <a href="LICENSE"><img src="https://img.shields.io/github/license/jee599/agentcrow?style=flat-square" alt="License" /></a>
 </p>
 
@@ -105,13 +105,17 @@ AgentCrow 자동 디스패치:
 npx agentcrow init
 ```
 
-이게 전부다. 실행하면 아래 파일들이 생성된다:
-- `.agr/agents/` — 144개 에이전트 정의 (빌트인 9개 + 외부 135개)
-- `.claude/CLAUDE.md` — Claude용 자동 디스패치 규칙
-- `.claude/settings.local.json` — SessionStart 훅
+이게 전부다. 두 가지를 한다:
+
+**최초 실행 시** — 에이전트를 `~/.agentcrow/`에 다운로드한다 (글로벌, 모든 프로젝트에서 공유)
+
+**매번 실행 시** — AgentCrow 섹션을 `.claude/CLAUDE.md`에 머지한다 (기존 규칙은 그대로 유지)
+
+> [!NOTE]
+> 에이전트는 `~/.agentcrow/`에 글로벌로 저장된다. 두 번째 프로젝트부터는 다운로드 없이 즉시 완료.
 
 > [!TIP]
-> AgentCrow는 첫 init 시 [agency-agents](https://github.com/msitarzewski/agency-agents)에서 외부 에이전트 135개를 내려받는다. `git`이 필요하다.
+> 이미 CLAUDE.md가 있다면? AgentCrow는 자기 섹션만 **추가**한다 — 기존 규칙은 건드리지 않는다.
 
 <a id="how-it-works"></a>
 ## ⚙️ 동작 원리
@@ -142,29 +146,30 @@ npx agentcrow init
 API 키 필요 없다. 서버 필요 없다. Claude Code + CLAUDE.md, 그게 전부다.
 
 <a id="agents"></a>
-## 🤖 144개 에이전트, 15개 부서
+## 🤖 9 빌트인 에이전트 + 외부 에이전트
 
-| 부서 | 수 | 예시 |
-|:---------|------:|:---------|
-| **Engineering** | 23 | frontend_developer, backend_architect, ai_engineer, sre |
-| **Game Dev** | 20 | game_designer, level_designer, unreal, unity, godot |
-| **Marketing** | 18 | content_strategist, seo_specialist, social_media |
-| **Testing** | 8 | test_automation, performance_tester |
-| **Design** | 8 | ui_designer, ux_researcher, brand_guardian |
-| **Builtin** | 9 | qa_engineer, korean_tech_writer, security_auditor |
-| + 9개 더 | 58 | sales, support, product, strategy, spatial-computing... |
+| 부서 | 예시 |
+|:---------|:---------|
+| **Engineering** | frontend_developer, backend_architect, ai_engineer, sre |
+| **Game Dev** | game_designer, level_designer, unreal, unity, godot |
+| **Marketing** | content_strategist, seo_specialist, social_media |
+| **Testing** | test_automation, performance_tester |
+| **Design** | ui_designer, ux_researcher, brand_guardian |
+| **Builtin** | qa_engineer, korean_tech_writer, security_auditor |
+| + more | sales, support, product, strategy, spatial-computing... |
 
 <a id="commands"></a>
 ## 🔧 명령어
 
 ```bash
-npx agentcrow init              # Set up agents + CLAUDE.md
-npx agentcrow status            # Check if active
-npx agentcrow off               # Disable temporarily
-npx agentcrow on                # Re-enable
-npx agentcrow agents            # List all 144 agents
-npx agentcrow agents search ai  # Search by keyword
-npx agentcrow compose "prompt"  # Preview decomposition (dry run)
+npx agentcrow init              # 에이전트 + CLAUDE.md 설정 (영어 기본)
+npx agentcrow init --lang ko    # 한국어 템플릿
+npx agentcrow status            # 활성화 상태 확인
+npx agentcrow off               # 임시 비활성화
+npx agentcrow on                # 다시 활성화
+npx agentcrow agents            # 전체 에이전트 목록
+npx agentcrow agents search ai  # 키워드 검색
+npx agentcrow compose "prompt"  # 분해 미리보기 (dry run)
 ```
 
 ## 💡 프롬프트 예시
@@ -191,13 +196,13 @@ Build a real-time chat app with WebSocket and deploy to Docker
 | 🔴 `agentcrow off` | 완전히 비활성화 |
 
 > [!IMPORTANT]
-> AgentCrow는 CLAUDE.md 파일 하나만 추가한다. 의존성 없고, 백그라운드 프로세스 없다. `agentcrow off`로 깔끔하게 제거된다.
+> AgentCrow는 `.claude/CLAUDE.md`와 `.claude/agents/`만 건드린다. 의존성 없고, 백그라운드 프로세스 없다. `agentcrow off`로 둘 다 백업 후 깔끔하게 제거된다.
 
 ## 🤝 기여하기
 
 ```bash
 git clone --recursive https://github.com/jee599/agentcrow.git
-cd agentochester && npm install && npm test  # 70 tests
+cd agentcrow && npm install && npm test  # 60 tests
 ```
 
 ## 📜 라이선스

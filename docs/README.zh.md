@@ -5,14 +5,14 @@
 </h1>
 
 <h3 align="center">
-  输入一个 prompt，AgentCrow 自动拆分到 144 个专业 Agent 并行执行。<br>
+  输入一个 prompt，AgentCrow 自动拆分到专业 Agent 并行执行。9 个内置 + 外部 Agent。<br>
   <code>npx agentcrow init</code> → <code>claude</code> → 自动调度。
 </h3>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/agentcrow"><img src="https://img.shields.io/npm/v/agentcrow?style=flat-square&color=violet" alt="npm" /></a>
-  <img src="https://img.shields.io/badge/agents-144_ready-brightgreen?style=flat-square" alt="Agents" />
-  <img src="https://img.shields.io/badge/tests-70_passing-brightgreen?style=flat-square" alt="Tests" />
+  <img src="https://img.shields.io/badge/agents-9_builtin-brightgreen?style=flat-square" alt="Agents" />
+  <img src="https://img.shields.io/badge/tests-60_passing-brightgreen?style=flat-square" alt="Tests" />
   <a href="LICENSE"><img src="https://img.shields.io/github/license/jee599/agentcrow?style=flat-square" alt="License" /></a>
 </p>
 
@@ -105,13 +105,17 @@ AgentCrow 自动调度:
 npx agentcrow init
 ```
 
-就这么简单。运行后会生成以下文件：
-- `.agr/agents/` — 144 个 Agent 定义（内置 9 个 + 外部 135 个）
-- `.claude/CLAUDE.md` — Claude 自动调度规则
-- `.claude/settings.local.json` — SessionStart 钩子
+就这么简单。它做两件事：
+
+**首次运行** — 将 Agent 下载到 `~/.agentcrow/`（全局存储，所有项目共享）
+
+**每次运行** — 将 AgentCrow 部分合并到 `.claude/CLAUDE.md`（你现有的规则保持不变）
+
+> [!NOTE]
+> Agent 全局存储在 `~/.agentcrow/`。第二个项目开始无需下载，即时完成。
 
 > [!TIP]
-> AgentCrow 在首次 init 时会从 [agency-agents](https://github.com/msitarzewski/agency-agents) 下载 135 个外部 Agent，需要 `git`。
+> 已经有 CLAUDE.md？AgentCrow 只会**追加**自己的部分 — 你现有的规则不会被修改。
 
 <a id="how-it-works"></a>
 ## ⚙️ 工作原理
@@ -142,29 +146,30 @@ npx agentcrow init
 不需要 API Key。不需要服务器。只需 Claude Code + CLAUDE.md。
 
 <a id="agents"></a>
-## 🤖 144 个 Agent，15 个部门
+## 🤖 9 个内置 Agent + 外部 Agent
 
-| 部门 | 数量 | 示例 |
-|:---------|------:|:---------|
-| **Engineering** | 23 | frontend_developer, backend_architect, ai_engineer, sre |
-| **Game Dev** | 20 | game_designer, level_designer, unreal, unity, godot |
-| **Marketing** | 18 | content_strategist, seo_specialist, social_media |
-| **Testing** | 8 | test_automation, performance_tester |
-| **Design** | 8 | ui_designer, ux_researcher, brand_guardian |
-| **Builtin** | 9 | qa_engineer, korean_tech_writer, security_auditor |
-| + 其他 9 个 | 58 | sales, support, product, strategy, spatial-computing... |
+| 部门 | 示例 |
+|:---------|:---------|
+| **Engineering** | frontend_developer, backend_architect, ai_engineer, sre |
+| **Game Dev** | game_designer, level_designer, unreal, unity, godot |
+| **Marketing** | content_strategist, seo_specialist, social_media |
+| **Testing** | test_automation, performance_tester |
+| **Design** | ui_designer, ux_researcher, brand_guardian |
+| **Builtin** | qa_engineer, korean_tech_writer, security_auditor |
+| + more | sales, support, product, strategy, spatial-computing... |
 
 <a id="commands"></a>
 ## 🔧 命令
 
 ```bash
-npx agentcrow init              # Set up agents + CLAUDE.md
-npx agentcrow status            # Check if active
-npx agentcrow off               # Disable temporarily
-npx agentcrow on                # Re-enable
-npx agentcrow agents            # List all 144 agents
-npx agentcrow agents search ai  # Search by keyword
-npx agentcrow compose "prompt"  # Preview decomposition (dry run)
+npx agentcrow init              # 设置 Agent + CLAUDE.md（默认英文）
+npx agentcrow init --lang ko    # 韩文模板
+npx agentcrow status            # 检查是否激活
+npx agentcrow off               # 临时禁用
+npx agentcrow on                # 重新启用
+npx agentcrow agents            # 列出所有 Agent
+npx agentcrow agents search ai  # 按关键词搜索
+npx agentcrow compose "prompt"  # 预览分解（dry run）
 ```
 
 ## 💡 Prompt 示例
@@ -191,13 +196,13 @@ Build a real-time chat app with WebSocket and deploy to Docker
 | 🔴 `agentcrow off` | 完全禁用 |
 
 > [!IMPORTANT]
-> AgentCrow 只添加一个 CLAUDE.md 文件。没有依赖，没有后台进程。`agentcrow off` 即可完全移除。
+> AgentCrow 只触碰 `.claude/CLAUDE.md` 和 `.claude/agents/`。没有依赖，没有后台进程。`agentcrow off` 会备份并完全移除两者。
 
 ## 🤝 贡献
 
 ```bash
 git clone --recursive https://github.com/jee599/agentcrow.git
-cd agentochester && npm install && npm test  # 70 tests
+cd agentcrow && npm install && npm test  # 60 tests
 ```
 
 ## 📜 许可证
