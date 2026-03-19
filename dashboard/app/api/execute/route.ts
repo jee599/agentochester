@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { spawn } from "node:child_process";
+import { smartDecompose } from "@/lib/smart-decomposer";
 import { decomposePrompt } from "@/lib/decomposer";
 import { matchAgent } from "@/lib/agents-handler";
 
@@ -62,7 +63,12 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  const tasks = decomposePrompt(prompt);
+  let tasks;
+  try {
+    tasks = await smartDecompose(prompt);
+  } catch {
+    tasks = decomposePrompt(prompt);
+  }
   const matched = await Promise.all(
     tasks.map(async (task) => {
       const result = await matchAgent(task.role, task.action);

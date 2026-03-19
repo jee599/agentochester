@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { smartDecompose } from "@/lib/smart-decomposer";
 import { decomposePrompt } from "@/lib/decomposer";
 import { matchAgent } from "@/lib/agents-handler";
 
@@ -13,8 +14,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 1. Decompose prompt into tasks
-    const tasks = decomposePrompt(prompt);
+    // 1. Try LLM-based decomposition, fallback to keyword-based
+    let tasks;
+    try {
+      tasks = await smartDecompose(prompt);
+    } catch {
+      tasks = decomposePrompt(prompt);
+    }
 
     // 2. Match each task to an agent
     const results = await Promise.all(
