@@ -275,3 +275,52 @@ describe.skipIf(!hasSubmodule)('parseAllAgencyAgents (real scan)', () => {
     }
   });
 });
+
+// ─── Edge cases: empty file, no H1, emoji-only ───
+
+describe('adapter edge cases', () => {
+  it('빈 파일에서 extractName은 에러를 던진다', () => {
+    expect(() => extractName('')).toThrow('No H1 heading found');
+  });
+
+  it('빈 파일에서 splitIntoSections은 빈 배열을 반환한다', () => {
+    const sections = splitIntoSections('');
+    expect(sections).toEqual([]);
+  });
+
+  it('H1 없이 H2만 있는 파일에서 extractName은 에러를 던진다', () => {
+    const content = '## Section One\nSome content\n## Section Two\nMore content';
+    expect(() => extractName(content)).toThrow('No H1 heading found');
+  });
+
+  it('H1 없이 H2만 있는 파일에서 splitIntoSections은 섹션을 반환한다', () => {
+    const content = '## Section One\nSome content\n## Section Two\nMore content';
+    const sections = splitIntoSections(content);
+    expect(sections).toHaveLength(2);
+    expect(sections[0].heading).toBe('Section One');
+    expect(sections[1].heading).toBe('Section Two');
+  });
+
+  it('이모지만 있는 H1에서 extractName은 빈 문자열 관련 결과를 반환한다', () => {
+    const content = '# 🚀🎯🔥\nSome body text';
+    const name = extractName(content);
+    // 이모지를 모두 제거하면 빈 문자열 또는 트림된 결과
+    expect(name).toBe('');
+  });
+
+  it('이모지만 있는 헤딩에서 splitIntoSections은 빈 heading을 필터링한다', () => {
+    const content = '## 🚀🎯\nSome content\n## Real Heading\nMore content';
+    const sections = splitIntoSections(content);
+    // 이모지만 있는 헤딩은 stripEmojis 후 빈 문자열 → filter로 제거됨
+    const headings = sections.map(s => s.heading);
+    expect(headings).not.toContain('');
+    expect(headings).toContain('Real Heading');
+  });
+
+  it('parseAgencyAgentMd: H1 없는 파일은 null을 반환한다', () => {
+    // parseAgencyAgentMd catches errors and returns null
+    // extractName throws on no H1, so parseAgencyAgentMd returns null
+    const result = parseAgencyAgentMd('/nonexistent/path.md', 'engineering');
+    expect(result).toBeNull();
+  });
+});

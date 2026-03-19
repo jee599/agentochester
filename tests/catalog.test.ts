@@ -42,6 +42,16 @@ describe('AgentCatalog', () => {
     expect(grouped['builtin'].length).toBe(9);
   });
 
+  it('searchByTags: 빈 쿼리는 결과 없음', () => {
+    const results = catalog.searchByTags([]);
+    expect(results).toHaveLength(0);
+  });
+
+  it('searchByTags: 매칭 없는 쿼리는 결과 없음', () => {
+    const results = catalog.searchByTags(['zzzznonexistenttag']);
+    expect(results).toHaveLength(0);
+  });
+
   // Conditional external tests
   if (hasExternal) {
     it('external 에이전트가 로드된다', () => {
@@ -56,4 +66,31 @@ describe('AgentCatalog', () => {
       }
     });
   }
+});
+
+describe('AgentCatalog findByRole builtin priority', () => {
+  it('같은 role이면 builtin이 external보다 우선한다', async () => {
+    // builtin에 있는 role을 검색하면 항상 builtin을 반환해야 한다
+    const catalog = new AgentCatalog(BUILTIN_DIR, EXTERNAL_DIR);
+    await catalog.build();
+
+    const agent = catalog.findByRole('korean_tech_writer');
+    expect(agent).not.toBeNull();
+    expect(agent!.source.type).toBe('builtin');
+  });
+
+  it('findByRole은 하이픈과 공백을 언더스코어로 정규화한다', async () => {
+    const catalog = new AgentCatalog(BUILTIN_DIR, EXTERNAL_DIR);
+    await catalog.build();
+
+    // 하이픈 → 언더스코어 변환
+    const agent = catalog.findByRole('korean-tech-writer');
+    expect(agent).not.toBeNull();
+    expect(agent!.role).toBe('korean_tech_writer');
+
+    // 공백 → 언더스코어 변환
+    const agent2 = catalog.findByRole('korean tech writer');
+    expect(agent2).not.toBeNull();
+    expect(agent2!.role).toBe('korean_tech_writer');
+  });
 });
