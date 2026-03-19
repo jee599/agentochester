@@ -106,11 +106,18 @@ async function main() {
 
   const allAgents = loadAgentRoles();
   console.log(`\x1b[35m🐦 AgentCrow\x1b[0m — ${allAgents.size} agents loaded`);
-  console.log(`\x1b[90mDecomposing: "${prompt}"\x1b[0m`);
   console.log();
 
-  // Decompose
+  // Decompose with spinner
+  const spinner = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+  let si = 0;
+  const interval = setInterval(() => {
+    process.stdout.write(`\r\x1b[35m${spinner[si++ % spinner.length]}\x1b[0m Analyzing prompt and matching agents...`);
+  }, 80);
+
   const tasks = await decompose(prompt);
+  clearInterval(interval);
+  process.stdout.write("\r\x1b[K");
 
   // Match & build --agents JSON
   const agentsJson: Record<string, { description: string; prompt: string }> = {};
@@ -152,12 +159,14 @@ ${taskLines.join("\n")}
 For each task, use the corresponding @agent to dispatch it. Do not do the work yourself — delegate to the agents.
 After all agents complete, summarize what was accomplished.`;
 
-  // Launch claude interactive with agents
+  // Launch claude with agents — pass the full instruction as the prompt argument
   const claudePath = process.env.CLAUDE_PATH || "claude";
+  const fullPrompt = `${systemPrompt}\n\nOriginal user request: "${prompt}"\n\nStart now. Dispatch the first agent.`;
+
   const args = [
     "--agents", JSON.stringify(agentsJson),
     "--allowedTools", "Write,Edit,Read,Bash,Glob,Grep,Agent",
-    "--append-system-prompt", systemPrompt,
+    fullPrompt,
   ];
 
   const env = { ...process.env };
