@@ -15,7 +15,7 @@
   "author": "jidonglab",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/jee599/agentochester.git"
+    "url": "git+https://github.com/jee599/agentcrow.git"
   },
   "license": "MIT",
   "files": ["dist/", "agents/builtin/", "templates/"],

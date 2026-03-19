@@ -13,7 +13,7 @@
   <a href="https://www.npmjs.com/package/agentcrow"><img src="https://img.shields.io/npm/v/agentcrow?style=flat-square&color=violet" alt="npm" /></a>
   <img src="https://img.shields.io/badge/agents-144_ready-brightgreen?style=flat-square" alt="Agents" />
   <img src="https://img.shields.io/badge/tests-70_passing-brightgreen?style=flat-square" alt="Tests" />
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/jee599/agentochester?style=flat-square" alt="License" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/jee599/agentcrow?style=flat-square" alt="License" /></a>
 </p>
 
 <p align="center">
@@ -195,7 +195,7 @@ Build a real-time chat app with WebSocket and deploy to Docker
 ## 🤝 贡献
 
 ```bash
-git clone --recursive https://github.com/jee599/agentochester.git
+git clone --recursive https://github.com/jee599/agentcrow.git
 cd agentochester && npm install && npm test  # 70 tests
 ```
 
@@ -210,7 +210,7 @@ MIT — 外部 Agent 来源：[agency-agents](https://github.com/msitarzewski/ag
 </p>
 
 <p align="center">
-  <a href="https://github.com/jee599/agentochester">
+  <a href="https://github.com/jee599/agentcrow">
     <img src="https://img.shields.io/badge/GitHub-⭐_Star_this_repo-yellow?style=for-the-badge&logo=github" alt="Star" />
   </a>
 </p>
