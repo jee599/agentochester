@@ -1,25 +1,25 @@
 {
-  "name": "spoon-compose",
-  "version": "0.1.0",
-  "private": true,
-  "type": "module",
+  "name": "auto-agent-router",
+  "version": "1.0.0",
+  "description": "Auto Agent Router — 181 agents, auto-decompose prompts, dispatch subagents in Claude Code",
   "bin": {
-    "agentcrow": "./bin/agentcrow"
+    "agr": "./dist/cli.js"
   },
+  "type": "module",
   "scripts": {
-    "agentcrow": "npx tsx bin/agentcrow.ts",
     "build": "tsc",
     "test": "vitest run",
-    "test:watch": "vitest",
-    "agents:init": "git submodule update --init --recursive",
-    "agents:update": "git submodule update --remote agents/external/agency-agents",
-    "agents:catalog": "npx tsx src/core/catalog.ts --rebuild",
-    "postinstall": "git submodule update --init --recursive || true"
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": ["claude", "agent", "claude-code", "multi-agent", "agent-teams", "ai"],
+  "license": "MIT",
+  "files": ["dist/", "agents/", "templates/"],
+  "dependencies": {
+    "yaml": "^2.8.2"
   },
   "devDependencies": {
     "@types/node": "^25.5.0",
     "typescript": "^5.9.3",
-    "vitest": "^4.1.0",
-    "yaml": "^2.8.2"
+    "vitest": "^4.1.0"
   }
 }
