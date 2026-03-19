@@ -63,6 +63,53 @@ export default function ComposePanel() {
   const [executing, setExecuting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedResults, setExpandedResults] = useState<Set<string>>(new Set());
+  const [followUps, setFollowUps] = useState<Record<string, string[]>>({});
+  const [followUpInput, setFollowUpInput] = useState<Record<string, string>>({});
+  const [followUpLoading, setFollowUpLoading] = useState<Record<string, boolean>>({});
+
+  const handleFollowUp = async (taskId: string) => {
+    const msg = followUpInput[taskId]?.trim();
+    if (!msg) return;
+    setFollowUpLoading((prev) => ({ ...prev, [taskId]: true }));
+    setFollowUpInput((prev) => ({ ...prev, [taskId]: "" }));
+
+    try {
+      const res = await fetch("/api/continue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: msg }),
+      });
+      if (!res.ok || !res.body) return;
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let response = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+        for (const line of lines) {
+          if (line.startsWith("data: ") && !line.includes('"done"')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.chunk) response += data.chunk;
+            } catch {}
+          }
+        }
+      }
+
+      setFollowUps((prev) => ({
+        ...prev,
+        [taskId]: [...(prev[taskId] || []), `> ${msg}`, response.trim()],
+      }));
+    } finally {
+      setFollowUpLoading((prev) => ({ ...prev, [taskId]: false }));
+    }
+  };
 
   const handleCompose = async () => {
     if (!prompt.trim()) return;
@@ -392,6 +439,36 @@ export default function ComposePanel() {
                     {r.error && (
                       <div className="text-[11px] font-mono text-rose-400 mt-1">{r.error}</div>
                     )}
+
+                    {/* Follow-up conversation */}
+                    {followUps[r.taskId]?.map((msg, i) => (
+                      <pre key={i} className={`text-[11px] font-mono rounded px-2 py-1.5 mt-1 whitespace-pre-wrap leading-tight ${
+                        msg.startsWith("> ")
+                          ? "text-violet-300 bg-violet-500/10 border border-violet-500/20"
+                          : "text-slate-400 bg-slate-900 border border-slate-700/30"
+                      }`}>
+                        {msg}
+                      </pre>
+                    ))}
+
+                    {/* Reply input */}
+                    <div className="flex gap-2 mt-2">
+                      <input
+                        type="text"
+                        value={followUpInput[r.taskId] || ""}
+                        onChange={(e) => setFollowUpInput((prev) => ({ ...prev, [r.taskId]: e.target.value }))}
+                        onKeyDown={(e) => { if (e.key === "Enter") handleFollowUp(r.taskId); }}
+                        placeholder="Reply to this agent..."
+                        className="flex-1 bg-slate-900 border border-slate-700/50 rounded px-2 py-1 text-xs font-mono text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-violet-500/50"
+                      />
+                      <button
+                        onClick={() => handleFollowUp(r.taskId)}
+                        disabled={followUpLoading[r.taskId] || !followUpInput[r.taskId]?.trim()}
+                        className="bg-violet-600 hover:bg-violet-500 disabled:opacity-40 px-3 py-1 rounded text-xs font-mono text-white transition-colors cursor-pointer shrink-0"
+                      >
+                        {followUpLoading[r.taskId] ? "..." : "Send"}
+                      </button>
+                    </div>
                   </>
                 )}
               </div>
