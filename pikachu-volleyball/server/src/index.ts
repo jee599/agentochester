@@ -21,20 +21,20 @@ wss.on('connection', (ws) => {
     }
 
     switch (msg.type) {
-      case 'create_room':
+      case 'createRoom':
         createRoom(ws);
         break;
-      case 'join_room':
+      case 'joinRoom':
         joinRoom(ws, msg.roomId);
         break;
       case 'input':
-        handleInput(ws, msg.keys);
+        handleInput(ws, msg.input);
         break;
-      case 'list_rooms':
-        listRooms(ws);
+      case 'ready':
+        // 클라이언트 준비 완료 — 현재는 무시 (joinRoom에서 자동 시작)
         break;
       default:
-        ws.send(JSON.stringify({ type: 'error', message: `Unknown message type` }));
+        ws.send(JSON.stringify({ type: 'error', message: 'Unknown message type' }));
     }
   });
 

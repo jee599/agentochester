@@ -1,82 +1,82 @@
-// ─── Game Constants ───
+// 클라이언트와 동일한 상수/타입 사용
 
-export const COURT_WIDTH = 800;
-export const COURT_HEIGHT = 400;
-export const NET_X = COURT_WIDTH / 2;
-export const NET_HEIGHT = 180;
-export const NET_TOP_Y = COURT_HEIGHT - NET_HEIGHT; // y=0 is top
-export const NET_HALF_WIDTH = 5;
+export const CANVAS_WIDTH = 800;
+export const CANVAS_HEIGHT = 400;
+export const GROUND_Y = 360;
+export const NET_X = 400;
+export const NET_WIDTH = 6;
+export const NET_HEIGHT = 120;
+export const NET_TOP = GROUND_Y - NET_HEIGHT;
 
-export const BALL_RADIUS = 20;
+export const BALL_RADIUS = 16;
 export const BALL_GRAVITY = 0.5;
-export const BALL_ELASTICITY = 0.75;
+export const BALL_BOUNCE = 0.75;
 
-export const PLAYER_RADIUS = 30;
-export const PLAYER_SPEED = 5;
-export const PLAYER_JUMP_VELOCITY = -12;
-export const PLAYER_GRAVITY = 0.5;
-export const PLAYER_GROUND_Y = COURT_HEIGHT - PLAYER_RADIUS;
+export const PIKACHU_WIDTH = 50;
+export const PIKACHU_HEAD_RADIUS = 25;
+export const PIKACHU_SPEED = 5;
+export const PIKACHU_JUMP_POWER = -12;
+export const PIKACHU_GRAVITY = 0.5;
 
-export const WIN_SCORE = 15;
+export const WINNING_SCORE = 15;
 export const TICK_RATE = 60;
-export const TICK_INTERVAL = 1000 / TICK_RATE; // ~16.67ms
+export const TICK_INTERVAL = 1000 / TICK_RATE;
 
-// ─── Game State Types ───
+export type PlayerSide = 'left' | 'right';
+export type GamePhase = 'waiting' | 'playing' | 'scored' | 'gameOver';
 
-export interface Vec2 {
-  x: number;
-  y: number;
-}
-
-export interface BallState {
+export interface Ball {
   x: number;
   y: number;
   vx: number;
   vy: number;
+  radius: number;
 }
 
-export interface PlayerState {
+export interface Pikachu {
   x: number;
   y: number;
+  vx: number;
   vy: number;
   isJumping: boolean;
+  side: PlayerSide;
 }
 
-export interface PlayerInput {
+export interface InputState {
   left: boolean;
   right: boolean;
-  up: boolean;
+  jump: boolean;
 }
 
-export interface GameState {
-  ball: BallState;
-  players: [PlayerState, PlayerState];
-  scores: [number, number];
-  server: 1 | 2;
+export interface GameStateSync {
+  ball: Ball;
+  player1: Pikachu;
+  player2: Pikachu;
+  score: { left: number; right: number };
+  phase: GamePhase;
+  servingSide: PlayerSide;
 }
-
-// ─── Message Protocol ───
 
 // Client → Server
 export type ClientMessage =
-  | { type: 'create_room' }
-  | { type: 'join_room'; roomId: string }
-  | { type: 'input'; keys: PlayerInput }
-  | { type: 'list_rooms' };
+  | { type: 'createRoom' }
+  | { type: 'joinRoom'; roomId: string }
+  | { type: 'input'; input: InputState }
+  | { type: 'ready' };
 
 // Server → Client
 export type ServerMessage =
-  | { type: 'room_created'; roomId: string }
-  | { type: 'room_joined'; roomId: string; playerNumber: 1 | 2 }
-  | { type: 'game_start' }
-  | { type: 'game_state'; state: GameState }
-  | { type: 'score'; scores: [number, number]; server: 1 | 2 }
-  | { type: 'game_over'; winner: 1 | 2 }
-  | { type: 'opponent_disconnected' }
-  | { type: 'room_list'; rooms: RoomInfo[] }
+  | { type: 'roomCreated'; roomId: string; side: PlayerSide }
+  | { type: 'roomJoined'; roomId: string; side: PlayerSide }
+  | { type: 'gameStart' }
+  | { type: 'gameState'; state: GameStateSync }
+  | { type: 'scored'; scorer: PlayerSide; score: { left: number; right: number } }
+  | { type: 'gameOver'; winner: PlayerSide; score: { left: number; right: number } }
+  | { type: 'roomList'; rooms: RoomInfo[] }
+  | { type: 'opponentDisconnected' }
   | { type: 'error'; message: string };
 
 export interface RoomInfo {
-  roomId: string;
+  id: string;
   playerCount: number;
 }

@@ -1,11 +1,11 @@
 import type { WebSocket } from 'ws';
 import { Game } from './game.js';
-import type { PlayerInput, ServerMessage, RoomInfo } from './types.js';
+import type { InputState, PlayerSide, ServerMessage, RoomInfo } from './types.js';
 import { TICK_INTERVAL } from './types.js';
 
 interface Player {
   ws: WebSocket;
-  playerNumber: 1 | 2;
+  side: PlayerSide;
 }
 
 interface Room {
@@ -18,12 +18,11 @@ interface Room {
 const rooms = new Map<string, Room>();
 
 function generateRoomId(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no I, O, 0, 1 to avoid confusion
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let id = '';
   for (let i = 0; i < 6; i++) {
     id += chars[Math.floor(Math.random() * chars.length)];
   }
-  // Avoid collision
   if (rooms.has(id)) return generateRoomId();
   return id;
 }
@@ -43,35 +42,46 @@ function broadcast(room: Room, msg: ServerMessage): void {
 function startGameLoop(room: Room): void {
   if (!room.game || room.tickInterval) return;
 
+  let roundOverFrames = 0;
+
   room.tickInterval = setInterval(() => {
     if (!room.game) return;
 
-    const scoreEvent = room.game.tick();
+    // 라운드 오버 딜레이 중이면 카운트다운만
+    if (roundOverFrames > 0) {
+      roundOverFrames--;
+      if (roundOverFrames === 0) {
+        room.game.resetRound(room.game.state.servingSide);
+      }
+      broadcast(room, { type: 'gameState', state: room.game.state });
+      return;
+    }
 
-    // Broadcast game state every tick
-    broadcast(room, {
-      type: 'game_state',
-      state: room.game.state,
-    });
+    const scoreEvent = room.game.tick();
 
     if (scoreEvent) {
       const gameOver = room.game.isGameOver();
       if (gameOver) {
-        broadcast(room, { type: 'game_over', winner: gameOver.winner });
+        broadcast(room, {
+          type: 'gameOver',
+          winner: gameOver.winner,
+          score: room.game.state.score,
+        });
         stopGameLoop(room);
-        // Clean up room after game over
         setTimeout(() => destroyRoom(room.id), 5000);
       } else {
-        // Switch server to scorer
-        const newServer = scoreEvent.scorer;
         broadcast(room, {
-          type: 'score',
-          scores: room.game.state.scores,
-          server: newServer,
+          type: 'scored',
+          scorer: scoreEvent.scorer,
+          score: room.game.state.score,
         });
-        room.game.resetRound(newServer);
+        room.game.state.servingSide = scoreEvent.scorer;
+        roundOverFrames = 60; // 1초 대기
       }
+      return;
     }
+
+    broadcast(room, { type: 'gameState', state: room.game.state });
   }, TICK_INTERVAL);
 }
 
@@ -93,13 +103,12 @@ export function createRoom(ws: WebSocket): void {
   const roomId = generateRoomId();
   const room: Room = {
     id: roomId,
-    players: [{ ws, playerNumber: 1 }],
+    players: [{ ws, side: 'left' }],
     game: null,
     tickInterval: null,
   };
   rooms.set(roomId, room);
-  send(ws, { type: 'room_created', roomId });
-  send(ws, { type: 'room_joined', roomId, playerNumber: 1 });
+  send(ws, { type: 'roomCreated', roomId, side: 'left' });
 }
 
 export function joinRoom(ws: WebSocket, roomId: string): void {
@@ -113,43 +122,42 @@ export function joinRoom(ws: WebSocket, roomId: string): void {
     return;
   }
 
-  room.players.push({ ws, playerNumber: 2 });
-  send(ws, { type: 'room_joined', roomId, playerNumber: 2 });
+  room.players.push({ ws, side: 'right' });
+  send(ws, { type: 'roomJoined', roomId, side: 'right' });
 
-  // Both players joined — start game
+  // 두 명 다 들어왔으면 게임 시작
   room.game = new Game();
-  broadcast(room, { type: 'game_start' });
+  broadcast(room, { type: 'gameStart' });
   startGameLoop(room);
 }
 
-export function handleInput(ws: WebSocket, keys: PlayerInput): void {
+export function handleInput(ws: WebSocket, input: InputState): void {
   const room = findRoomBySocket(ws);
   if (!room || !room.game) return;
 
   const player = room.players.find((p) => p.ws === ws);
   if (!player) return;
 
-  room.game.inputs[player.playerNumber - 1] = keys;
+  room.game.inputs[player.side] = input;
 }
 
 export function listRooms(ws: WebSocket): void {
   const roomList: RoomInfo[] = [];
-  for (const [roomId, room] of rooms) {
+  for (const [, room] of rooms) {
     if (room.players.length < 2) {
-      roomList.push({ roomId, playerCount: room.players.length });
+      roomList.push({ id: room.id, playerCount: room.players.length });
     }
   }
-  send(ws, { type: 'room_list', rooms: roomList });
+  send(ws, { type: 'roomList', rooms: roomList });
 }
 
 export function handleDisconnect(ws: WebSocket): void {
   const room = findRoomBySocket(ws);
   if (!room) return;
 
-  // Notify remaining player
   const remaining = room.players.find((p) => p.ws !== ws);
   if (remaining) {
-    send(remaining.ws, { type: 'opponent_disconnected' });
+    send(remaining.ws, { type: 'opponentDisconnected' });
   }
 
   stopGameLoop(room);

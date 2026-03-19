@@ -6,6 +6,7 @@
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
     "build": "tsc",
+    "test": "vitest run",
     "serve": "node dist/index.js"
   },
   "dependencies": {

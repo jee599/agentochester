@@ -1,233 +1,225 @@
 import {
-  type BallState,
-  type PlayerState,
-  type PlayerInput,
-  type GameState,
-  COURT_WIDTH,
-  COURT_HEIGHT,
+  type Ball,
+  type Pikachu,
+  type InputState,
+  type GameStateSync,
+  type PlayerSide,
+  CANVAS_WIDTH,
+  GROUND_Y,
   NET_X,
-  NET_HEIGHT,
-  NET_HALF_WIDTH,
+  NET_WIDTH,
+  NET_TOP,
   BALL_RADIUS,
   BALL_GRAVITY,
-  BALL_ELASTICITY,
-  PLAYER_RADIUS,
-  PLAYER_SPEED,
-  PLAYER_JUMP_VELOCITY,
-  PLAYER_GRAVITY,
-  PLAYER_GROUND_Y,
-  WIN_SCORE,
+  BALL_BOUNCE,
+  PIKACHU_WIDTH,
+  PIKACHU_HEAD_RADIUS,
+  PIKACHU_SPEED,
+  PIKACHU_JUMP_POWER,
+  PIKACHU_GRAVITY,
+  WINNING_SCORE,
 } from './types.js';
 
 export class Game {
-  state: GameState;
-  inputs: [PlayerInput, PlayerInput];
-  private roundOver = false;
-  private roundOverTimer = 0;
-  private static readonly ROUND_OVER_DELAY = 60; // 1 second at 60fps
+  state: GameStateSync;
+  inputs: { left: InputState; right: InputState };
 
   constructor() {
-    this.inputs = [
-      { left: false, right: false, up: false },
-      { left: false, right: false, up: false },
-    ];
-    this.state = this.createInitialState(1);
+    this.inputs = {
+      left: { left: false, right: false, jump: false },
+      right: { left: false, right: false, jump: false },
+    };
+    this.state = this.createInitialState('left');
   }
 
-  private createInitialState(server: 1 | 2): GameState {
-    const ballX = server === 1 ? 200 : 600;
+  private createBall(servingSide: PlayerSide): Ball {
     return {
-      ball: { x: ballX, y: 100, vx: 0, vy: 0 },
-      players: [
-        { x: 200, y: PLAYER_GROUND_Y, vy: 0, isJumping: false },
-        { x: 600, y: PLAYER_GROUND_Y, vy: 0, isJumping: false },
-      ],
-      scores: this.state?.scores ?? [0, 0],
-      server,
+      x: servingSide === 'left' ? 200 : 600,
+      y: 100,
+      vx: 0,
+      vy: 0,
+      radius: BALL_RADIUS,
     };
   }
 
-  resetRound(server: 1 | 2): void {
-    const scores = this.state.scores;
-    this.state = this.createInitialState(server);
-    this.state.scores = scores;
-    this.roundOver = false;
-    this.roundOverTimer = 0;
-    this.inputs = [
-      { left: false, right: false, up: false },
-      { left: false, right: false, up: false },
-    ];
+  private createPikachu(side: PlayerSide): Pikachu {
+    return {
+      x: side === 'left' ? 200 : 600,
+      y: GROUND_Y,
+      vx: 0,
+      vy: 0,
+      isJumping: false,
+      side,
+    };
   }
 
-  /** Returns scoring event or null */
-  tick(): { scorer: 1 | 2 } | null {
-    // During round-over delay, just count down
-    if (this.roundOver) {
-      this.roundOverTimer--;
-      if (this.roundOverTimer <= 0) {
-        this.roundOver = false;
-      }
-      return null;
-    }
+  private createInitialState(servingSide: PlayerSide): GameStateSync {
+    return {
+      ball: this.createBall(servingSide),
+      player1: this.createPikachu('left'),
+      player2: this.createPikachu('right'),
+      score: this.state?.score ?? { left: 0, right: 0 },
+      phase: 'playing',
+      servingSide,
+    };
+  }
 
-    this.updatePlayer(0);
-    this.updatePlayer(1);
+  resetRound(servingSide: PlayerSide): void {
+    const score = this.state.score;
+    this.state = this.createInitialState(servingSide);
+    this.state.score = score;
+    this.inputs = {
+      left: { left: false, right: false, jump: false },
+      right: { left: false, right: false, jump: false },
+    };
+  }
+
+  tick(): { scorer: PlayerSide } | null {
+    this.updatePikachu('left');
+    this.updatePikachu('right');
     this.updateBall();
 
-    // Check floor collision (scoring)
-    const ballBottomY = this.state.ball.y + BALL_RADIUS;
-    if (ballBottomY >= COURT_HEIGHT) {
-      // Ball hit the floor
-      const scorer: 1 | 2 = this.state.ball.x < NET_X ? 2 : 1;
-      this.state.scores[scorer - 1]++;
-      this.roundOver = true;
-      this.roundOverTimer = Game.ROUND_OVER_DELAY;
+    // 바닥 충돌 → 득점
+    if (this.state.ball.y + this.state.ball.radius >= GROUND_Y) {
+      const scorer: PlayerSide = this.state.ball.x < NET_X ? 'right' : 'left';
+      this.state.score[scorer]++;
       return { scorer };
     }
 
     return null;
   }
 
-  isGameOver(): { winner: 1 | 2 } | null {
-    if (this.state.scores[0] >= WIN_SCORE) return { winner: 1 };
-    if (this.state.scores[1] >= WIN_SCORE) return { winner: 2 };
+  isGameOver(): { winner: PlayerSide } | null {
+    if (this.state.score.left >= WINNING_SCORE) return { winner: 'left' };
+    if (this.state.score.right >= WINNING_SCORE) return { winner: 'right' };
     return null;
   }
 
-  private updatePlayer(index: number): void {
-    const player = this.state.players[index];
-    const input = this.inputs[index];
+  private updatePikachu(side: PlayerSide): void {
+    const p = side === 'left' ? this.state.player1 : this.state.player2;
+    const input = this.inputs[side];
 
-    // Horizontal movement
-    if (input.left) player.x -= PLAYER_SPEED;
-    if (input.right) player.x += PLAYER_SPEED;
+    // 이동
+    p.vx = 0;
+    if (input.left) p.vx = -PIKACHU_SPEED;
+    if (input.right) p.vx = PIKACHU_SPEED;
 
-    // Clamp to own side
-    if (index === 0) {
-      player.x = Math.max(PLAYER_RADIUS, Math.min(NET_X - NET_HALF_WIDTH - PLAYER_RADIUS, player.x));
+    // 점프
+    if (input.jump && !p.isJumping) {
+      p.vy = PIKACHU_JUMP_POWER;
+      p.isJumping = true;
+    }
+
+    // 중력
+    p.vy += PIKACHU_GRAVITY;
+    p.x += p.vx;
+    p.y += p.vy;
+
+    // 바닥
+    if (p.y >= GROUND_Y) {
+      p.y = GROUND_Y;
+      p.vy = 0;
+      p.isJumping = false;
+    }
+
+    // 코트 제한
+    const halfWidth = PIKACHU_WIDTH / 2;
+    const netHalf = NET_WIDTH / 2;
+    if (side === 'left') {
+      p.x = Math.max(halfWidth, Math.min(NET_X - netHalf - halfWidth, p.x));
     } else {
-      player.x = Math.max(NET_X + NET_HALF_WIDTH + PLAYER_RADIUS, Math.min(COURT_WIDTH - PLAYER_RADIUS, player.x));
-    }
-
-    // Jump
-    if (input.up && !player.isJumping) {
-      player.vy = PLAYER_JUMP_VELOCITY;
-      player.isJumping = true;
-    }
-
-    // Gravity
-    player.vy += PLAYER_GRAVITY;
-    player.y += player.vy;
-
-    // Ground collision
-    if (player.y >= PLAYER_GROUND_Y) {
-      player.y = PLAYER_GROUND_Y;
-      player.vy = 0;
-      player.isJumping = false;
+      p.x = Math.max(NET_X + netHalf + halfWidth, Math.min(CANVAS_WIDTH - halfWidth, p.x));
     }
   }
 
   private updateBall(): void {
     const ball = this.state.ball;
 
-    // Gravity
     ball.vy += BALL_GRAVITY;
-
-    // Move
     ball.x += ball.vx;
     ball.y += ball.vy;
 
-    // Wall collisions
-    if (ball.x - BALL_RADIUS <= 0) {
-      ball.x = BALL_RADIUS;
-      ball.vx = Math.abs(ball.vx) * BALL_ELASTICITY;
+    // 벽 반사
+    if (ball.x - ball.radius < 0) {
+      ball.x = ball.radius;
+      ball.vx = Math.abs(ball.vx) * BALL_BOUNCE;
     }
-    if (ball.x + BALL_RADIUS >= COURT_WIDTH) {
-      ball.x = COURT_WIDTH - BALL_RADIUS;
-      ball.vx = -Math.abs(ball.vx) * BALL_ELASTICITY;
-    }
-
-    // Ceiling collision
-    if (ball.y - BALL_RADIUS <= 0) {
-      ball.y = BALL_RADIUS;
-      ball.vy = Math.abs(ball.vy) * BALL_ELASTICITY;
+    if (ball.x + ball.radius > CANVAS_WIDTH) {
+      ball.x = CANVAS_WIDTH - ball.radius;
+      ball.vx = -Math.abs(ball.vx) * BALL_BOUNCE;
     }
 
-    // Net collision
-    this.handleNetCollision(ball);
+    // 천장
+    if (ball.y - ball.radius < 0) {
+      ball.y = ball.radius;
+      ball.vy = Math.abs(ball.vy) * BALL_BOUNCE;
+    }
 
-    // Player collisions
-    this.handlePlayerCollision(ball, this.state.players[0]);
-    this.handlePlayerCollision(ball, this.state.players[1]);
-  }
+    // 네트 충돌
+    const netLeft = NET_X - NET_WIDTH / 2;
+    const netRight = NET_X + NET_WIDTH / 2;
 
-  private handleNetCollision(ball: BallState): void {
-    const netTopY = COURT_HEIGHT - NET_HEIGHT;
-
-    // Ball must be near the net vertically (below top of net)
-    if (ball.y + BALL_RADIUS < netTopY) return;
-
-    // Check horizontal proximity to net
-    const distX = Math.abs(ball.x - NET_X);
-    if (distX < BALL_RADIUS + NET_HALF_WIDTH) {
-      // Top of net collision (ball coming from above)
-      if (ball.y - BALL_RADIUS < netTopY && ball.y + BALL_RADIUS > netTopY) {
-        if (ball.vy > 0) {
-          ball.y = netTopY - BALL_RADIUS;
-          ball.vy = -ball.vy * BALL_ELASTICITY;
-          return;
+    if (
+      ball.x + ball.radius > netLeft &&
+      ball.x - ball.radius < netRight &&
+      ball.y + ball.radius > NET_TOP
+    ) {
+      if (ball.y - ball.radius < NET_TOP && ball.vy > 0) {
+        // 위에서 내려오는 경우
+        ball.y = NET_TOP - ball.radius;
+        ball.vy = -Math.abs(ball.vy) * BALL_BOUNCE;
+      } else {
+        // 옆에서 오는 경우
+        if (ball.x < NET_X) {
+          ball.x = netLeft - ball.radius;
+          ball.vx = -Math.abs(ball.vx) * BALL_BOUNCE;
+        } else {
+          ball.x = netRight + ball.radius;
+          ball.vx = Math.abs(ball.vx) * BALL_BOUNCE;
         }
       }
-
-      // Side of net collision
-      if (ball.x < NET_X) {
-        ball.x = NET_X - NET_HALF_WIDTH - BALL_RADIUS;
-      } else {
-        ball.x = NET_X + NET_HALF_WIDTH + BALL_RADIUS;
-      }
-      ball.vx = -ball.vx * BALL_ELASTICITY;
     }
+
+    // 피카츄 충돌
+    this.handlePikachuCollision(ball, this.state.player1);
+    this.handlePikachuCollision(ball, this.state.player2);
   }
 
-  private handlePlayerCollision(ball: BallState, player: PlayerState): void {
-    const dx = ball.x - player.x;
-    const dy = ball.y - player.y;
+  private handlePikachuCollision(ball: Ball, pikachu: Pikachu): void {
+    const headX = pikachu.x;
+    const headY = pikachu.y - 30;
+
+    const dx = ball.x - headX;
+    const dy = ball.y - headY;
     const dist = Math.sqrt(dx * dx + dy * dy);
-    const minDist = BALL_RADIUS + PLAYER_RADIUS;
+    const minDist = ball.radius + PIKACHU_HEAD_RADIUS;
 
     if (dist >= minDist || dist === 0) return;
 
-    // Normalize collision vector
     const nx = dx / dist;
     const ny = dy / dist;
 
-    // Separate ball from player
-    ball.x = player.x + nx * minDist;
-    ball.y = player.y + ny * minDist;
+    // 겹침 해소
+    ball.x = headX + nx * minDist;
+    ball.y = headY + ny * minDist;
 
-    // Reflect velocity
-    const relVx = ball.vx;
-    const relVy = ball.vy - player.vy;
+    // 반사
+    const relVx = ball.vx - pikachu.vx;
+    const relVy = ball.vy - pikachu.vy;
     const dot = relVx * nx + relVy * ny;
 
-    // Only resolve if moving toward each other
-    if (dot < 0) return;
+    if (dot < 0) {
+      const bounce = 1.2;
+      ball.vx = ball.vx - (1 + bounce) * dot * nx + pikachu.vx * 0.5;
+      ball.vy = ball.vy - (1 + bounce) * dot * ny + pikachu.vy * 0.5;
 
-    const impulse = dot * (1 + BALL_ELASTICITY);
-    ball.vx -= impulse * nx;
-    ball.vy -= impulse * ny;
-
-    // Add a slight upward kick when player is rising (headbutt)
-    if (player.vy < 0) {
-      ball.vy += player.vy * 0.5;
-    }
-
-    // Clamp ball speed
-    const maxSpeed = 15;
-    const speed = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
-    if (speed > maxSpeed) {
-      ball.vx = (ball.vx / speed) * maxSpeed;
-      ball.vy = (ball.vy / speed) * maxSpeed;
+      // 속도 제한
+      const maxSpeed = 15;
+      const speed = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
+      if (speed > maxSpeed) {
+        ball.vx = (ball.vx / speed) * maxSpeed;
+        ball.vy = (ball.vy / speed) * maxSpeed;
+      }
     }
   }
 }
