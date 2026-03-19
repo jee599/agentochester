@@ -11,10 +11,14 @@ function runClaude(
 ): Promise<{ success: boolean; output: string; error?: string; durationMs: number }> {
   return new Promise((resolve) => {
     const start = Date.now();
+    const env = { ...process.env };
+    delete env.ANTHROPIC_API_KEY;
+
     const proc = spawn("claude", ["-p", "--dangerously-skip-permissions", prompt], {
       cwd,
       shell: false,
       timeout: timeoutMs,
+      env,
     });
 
     let stdout = "";
@@ -83,7 +87,6 @@ export async function POST(request: NextRequest) {
       }
 
       const cwd = workingDir || process.cwd();
-      const completed = new Set<string>();
       const totalStart = Date.now();
 
       // Send initial plan
@@ -97,22 +100,15 @@ export async function POST(request: NextRequest) {
       });
 
       for (const { task, agent } of executable) {
-        const depsMet = task.depends_on.every((d) => completed.has(d));
-
         send("task_start", {
           taskId: task.id,
           role: task.role,
           agentName: agent!.name,
-          status: depsMet ? "running" : "skipped",
+          status: "running",
         });
 
-        if (!depsMet) {
-          send("task_done", {
-            taskId: task.id,
-            status: "error",
-            error: "Dependencies not met",
-            durationMs: 0,
-          });
+        if (false) {
+          // Dependencies check disabled — all tasks run independently
           continue;
         }
 
@@ -128,10 +124,6 @@ export async function POST(request: NextRequest) {
         const result = await runClaude(agentPrompt, cwd, (chunk) => {
           send("task_output", { taskId: task.id, chunk });
         });
-
-        if (result.success) {
-          completed.add(task.id);
-        }
 
         send("task_done", {
           taskId: task.id,

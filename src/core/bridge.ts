@@ -41,10 +41,14 @@ export class ClaudeCLIBridge {
       const start = Date.now();
       const args = ['-p', '--dangerously-skip-permissions', prompt];
 
+      const env = { ...process.env };
+      delete env.ANTHROPIC_API_KEY;
+
       const proc = spawn('claude', args, {
         cwd: workingDir || process.cwd(),
         shell: false,
         timeout: this.timeoutMs,
+        env,
       });
 
       let stdout = '';
