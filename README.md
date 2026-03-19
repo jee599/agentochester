@@ -6,12 +6,12 @@
 
 <h3 align="center">
   Claude Code Agent Teams is powerful. But it doesn't know <i>which</i> agents to use.<br>
-  AgentCrow does. 144 agents. Auto-dispatch. <code>npx agentcrow init</code>
+  AgentCrow does. 9 builtin agents + external agents. Auto-dispatch. <code>npx agentcrow init</code>
 </h3>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/agentcrow"><img src="https://img.shields.io/npm/v/agentcrow?style=flat-square&color=violet" alt="npm" /></a>
-  <img src="https://img.shields.io/badge/agents-144_ready-brightgreen?style=flat-square" alt="Agents" />
+  <img src="https://img.shields.io/badge/agents-9_builtin-brightgreen?style=flat-square" alt="Agents" />
   <img src="https://img.shields.io/badge/tests-70_passing-brightgreen?style=flat-square" alt="Tests" />
   <a href="LICENSE"><img src="https://img.shields.io/github/license/jee599/agentcrow?style=flat-square" alt="License" /></a>
 </p>
@@ -36,7 +36,7 @@
 |:---|:---:|:---:|
 | Spawn subagents | ✅ | ✅ |
 | Know which agents to use | ❌ you decide | ✅ auto-matched |
-| 144 pre-built agent roles | ❌ you write prompts | ✅ ready to go |
+| 9 builtin + external agent roles | ❌ you write prompts | ✅ ready to go |
 | Auto-decompose prompts | ❌ you split manually | ✅ one prompt in |
 | Agent identity & rules | ❌ blank subagents | ✅ personality, MUST/MUST NOT |
 | Works without config | ❌ needs `--agents` JSON | ✅ `npx agentcrow init` |
@@ -127,12 +127,12 @@ npx agentcrow init
 ```
 
 That's it. This creates:
-- `.agr/agents/` — 144 agent definitions (9 builtin + 135 external)
+- `.agr/agents/` — 9 builtin agents + external agents from agency-agents
 - `.claude/CLAUDE.md` — auto-dispatch instructions for Claude
 - `.claude/settings.local.json` — SessionStart hook
 
 > [!TIP]
-> AgentCrow downloads 135 external agents from [agency-agents](https://github.com/msitarzewski/agency-agents) on first init. Requires `git`.
+> AgentCrow downloads external agents from [agency-agents](https://github.com/msitarzewski/agency-agents) on first init. Requires `git`.
 
 <a id="how-it-works"></a>
 ## ⚙️ How It Works
@@ -163,7 +163,7 @@ That's it. This creates:
 No API key. No server. Just Claude Code + CLAUDE.md.
 
 <a id="agents"></a>
-## 🤖 144 Agents, 15 Divisions
+## 🤖 9 Builtin Agents + External Agents
 
 | Division | Count | Examples |
 |:---------|------:|:---------|
@@ -183,7 +183,7 @@ npx agentcrow init              # Set up agents + CLAUDE.md
 npx agentcrow status            # Check if active
 npx agentcrow off               # Disable temporarily
 npx agentcrow on                # Re-enable
-npx agentcrow agents            # List all 144 agents
+npx agentcrow agents            # List all agents
 npx agentcrow agents search ai  # Search by keyword
 npx agentcrow compose "prompt"  # Preview decomposition (dry run)
 ```

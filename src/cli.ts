@@ -14,14 +14,19 @@ const __dirname = path.dirname(__filename);
 const PKG_ROOT = path.resolve(__dirname, '..');
 const BUILTIN_DIR = path.join(PKG_ROOT, 'agents', 'builtin');
 const EXTERNAL_DIR = path.join(PKG_ROOT, 'agents', 'external', 'agency-agents');
-const TEMPLATE_PATH = path.join(PKG_ROOT, 'templates', 'CLAUDE.md.template');
+const AGENTCROW_START = '<!-- AgentCrow Start -->';
+const AGENTCROW_END = '<!-- AgentCrow End -->';
+
+function getTemplatePath(lang: string): string {
+  return path.join(PKG_ROOT, 'templates', `CLAUDE.md.${lang}.template`);
+}
 
 function printUsage(): void {
   console.log(`
 \x1b[35m🐦 agentcrow\x1b[0m — Auto Agent Router for Claude Code
 
 \x1b[1mUsage:\x1b[0m
-  agentcrow init                     Set up agents in current project
+  agentcrow init [--lang ko]         Set up agents in current project (default: English)
   agentcrow on                       Enable AgentCrow (restore CLAUDE.md)
   agentcrow off                      Disable AgentCrow (backup & remove CLAUDE.md)
   agentcrow status                   Check if AgentCrow is active
@@ -31,14 +36,15 @@ function printUsage(): void {
 
 \x1b[1mExamples:\x1b[0m
   agentcrow init
+  agentcrow init --lang ko           # Korean template
   agentcrow off                      # Disable temporarily
   agentcrow on                       # Re-enable
-  agentcrow compose "투두앱 만들어줘"
+  agentcrow compose "Build a todo app"
 `);
 }
 
 // ─── agentcrow init ───
-async function cmdInit(): Promise<void> {
+async function cmdInit(lang: string = 'en'): Promise<void> {
   const cwd = process.cwd();
   const agrDir = path.join(cwd, '.agr', 'agents');
 
@@ -92,12 +98,13 @@ async function cmdInit(): Promise<void> {
   await catalog.build();
   const agentCount = catalog.listAll().length;
 
-  // 4. Generate .claude/CLAUDE.md from template
+  // 4. Generate .claude/CLAUDE.md from template (merge, not overwrite)
   const claudeDir = path.join(cwd, '.claude');
   fs.mkdirSync(claudeDir, { recursive: true });
   const claudeMdPath = path.join(claudeDir, 'CLAUDE.md');
 
-  let template = fs.readFileSync(TEMPLATE_PATH, 'utf-8');
+  const templatePath = getTemplatePath(lang);
+  let template = fs.readFileSync(templatePath, 'utf-8');
   template = template.replace('{{count}}', String(agentCount));
 
   // Fill in agent lists
@@ -107,14 +114,39 @@ async function cmdInit(): Promise<void> {
     .join('\n');
   template = template.replace('{{builtin_agents}}', builtinList || '(none)');
 
+  const countSuffix = lang === 'ko' ? '개' : '';
   const externalDivisions = Object.entries(grouped)
     .filter(([div]) => div !== 'builtin')
-    .map(([div, entries]) => `- **${div}**: ${entries.map((e) => e.role).join(', ')} (${entries.length}개)`)
+    .map(([div, entries]) => `- **${div}**: ${entries.map((e) => e.role).join(', ')} (${entries.length}${countSuffix})`)
     .join('\n');
   template = template.replace('{{external_agents}}', externalDivisions || '(none)');
 
-  fs.writeFileSync(claudeMdPath, template, 'utf-8');
-  console.log(`  Generated .claude/CLAUDE.md (${agentCount} agents)`);
+  // Merge with existing CLAUDE.md instead of overwriting
+  if (fs.existsSync(claudeMdPath)) {
+    const existing = fs.readFileSync(claudeMdPath, 'utf-8');
+    const startIdx = existing.indexOf(AGENTCROW_START);
+    const endIdx = existing.indexOf(AGENTCROW_END);
+
+    if (startIdx !== -1 && endIdx !== -1) {
+      // Replace existing AgentCrow section
+      const before = existing.slice(0, startIdx);
+      const after = existing.slice(endIdx + AGENTCROW_END.length);
+      fs.writeFileSync(claudeMdPath, before + template + after, 'utf-8');
+      console.log(`  Updated AgentCrow section in .claude/CLAUDE.md (${agentCount} agents)`);
+    } else if (existing.includes('AgentCrow')) {
+      // Old format without markers — replace entirely
+      fs.writeFileSync(claudeMdPath, template, 'utf-8');
+      console.log(`  Replaced .claude/CLAUDE.md (${agentCount} agents)`);
+    } else {
+      // User has their own CLAUDE.md — append AgentCrow section
+      const merged = existing + '\n\n---\n\n' + template;
+      fs.writeFileSync(claudeMdPath, merged, 'utf-8');
+      console.log(`  Appended AgentCrow section to .claude/CLAUDE.md (${agentCount} agents)`);
+    }
+  } else {
+    fs.writeFileSync(claudeMdPath, template, 'utf-8');
+    console.log(`  Generated .claude/CLAUDE.md (${agentCount} agents)`);
+  }
 
   // 5. Add .agr/ to .gitignore
   const gitignorePath = path.join(cwd, '.gitignore');
@@ -238,7 +270,7 @@ Available roles: ${allRoles.join(', ')}
 Output ONLY a JSON array: [{"role":"role_name","action":"specific task"}]
 2-6 tasks. No explanation.`;
 
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const env = { ...process.env };
     delete env.ANTHROPIC_API_KEY;
 
@@ -255,35 +287,26 @@ Output ONLY a JSON array: [{"role":"role_name","action":"specific task"}]
       out += d.toString();
     });
 
-    proc.on('close', () => {
+    proc.on('close', (code) => {
       try {
         const match = out.match(/\[[\s\S]*\]/);
-        if (match) resolve(JSON.parse(match[0]));
-        else resolve([{ role: 'frontend_developer', action: prompt }]);
+        if (match) {
+          resolve(JSON.parse(match[0]));
+        } else {
+          console.error('Failed to decompose. Make sure `claude` CLI is installed and authenticated.');
+          process.exit(1);
+        }
       } catch {
-        resolve([{ role: 'frontend_developer', action: prompt }]);
+        console.error('Failed to decompose. Make sure `claude` CLI is installed and authenticated.');
+        process.exit(1);
       }
     });
 
     proc.on('error', () => {
-      resolve([{ role: 'frontend_developer', action: prompt }]);
+      console.error('Failed to decompose. Make sure `claude` CLI is installed and authenticated.');
+      process.exit(1);
     });
   });
-}
-
-// ─── Utility ───
-function copyDirRecursive(src: string, dest: string): void {
-  fs.mkdirSync(dest, { recursive: true });
-  const entries = fs.readdirSync(src, { withFileTypes: true });
-  for (const entry of entries) {
-    const srcPath = path.join(src, entry.name);
-    const destPath = path.join(dest, entry.name);
-    if (entry.isDirectory()) {
-      copyDirRecursive(srcPath, destPath);
-    } else {
-      fs.copyFileSync(srcPath, destPath);
-    }
-  }
 }
 
 // ─── agentcrow off ───
@@ -379,40 +402,10 @@ function installHook(cwd: string): void {
   }
 
   if (!settings.hooks) settings.hooks = {};
-  // Find the hook script — try npx location first, then local
-  const hookScript = `node -e "
-const fs=require('fs'),p=require('path');
-const d=p.join(process.cwd(),'.agr','agents','builtin');
-if(!fs.existsSync(d)){process.exit(0)}
-const f=fs.readdirSync(d).filter(x=>x.endsWith('.yaml'));
-const r=f.map(x=>x.replace('.yaml','').replace(/-/g,'_'));
-const line='─'.repeat(50);
-console.log('\\x1b[35m🐦 AgentCrow active\\x1b[0m');
-console.log('\\x1b[90m'+line+'\\x1b[0m');
-console.log('\\x1b[90m'+f.length+' builtin agents:\\x1b[0m');
-r.forEach(x=>console.log('\\x1b[90m  · '+x+'\\x1b[0m'));
-const e=p.join(process.cwd(),'.agr','agents','external','agency-agents');
-if(fs.existsSync(e)){
-  const skip=new Set(['scripts','integrations','examples','.github','.git']);
-  let c=0,divs=[];
-  fs.readdirSync(e,{withFileTypes:true}).forEach(x=>{
-    if(!x.isDirectory()||skip.has(x.name))return;
-    divs.push(x.name);
-    const walk=d=>{fs.readdirSync(d,{withFileTypes:true}).forEach(y=>{
-      if(y.isDirectory())walk(p.join(d,y.name));
-      else if(y.name.endsWith('.md')&&y.name!=='README.md')c++;
-    })};
-    walk(p.join(e,x.name));
-  });
-  console.log('\\x1b[90m'+c+' external agents ('+divs.length+' divisions)\\x1b[0m');
-}
-console.log('\\x1b[90m'+line+'\\x1b[0m');
-console.log('\\x1b[90mComplex prompts → auto agent dispatch\\x1b[0m');
-"`;
 
   settings.hooks.SessionStart = [{
     type: 'command',
-    command: hookScript,
+    command: "echo '🐦 AgentCrow active'",
   }];
 
   fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2), 'utf-8');
@@ -439,9 +432,12 @@ async function main(): Promise<void> {
   const command = args[0];
 
   switch (command) {
-    case 'init':
-      await cmdInit();
+    case 'init': {
+      const langIdx = args.indexOf('--lang');
+      const lang = langIdx !== -1 && args[langIdx + 1] ? args[langIdx + 1] : 'en';
+      await cmdInit(lang);
       break;
+    }
 
     case 'on':
       cmdOn();
