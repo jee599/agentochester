@@ -126,16 +126,17 @@ AgentCrow auto-dispatches:
 npx agentcrow init
 ```
 
-That's it. This creates:
-- `.agr/agents/` — 9 builtin agents + external agents from agency-agents
-- `.claude/CLAUDE.md` — auto-dispatch instructions (merges with your existing CLAUDE.md)
-- `.claude/settings.local.json` — SessionStart hook
+That's it. This does two things:
+
+**First run only** — downloads agents to `~/.agentcrow/` (global, shared across all projects)
+
+**Every run** — merges AgentCrow section into `.claude/CLAUDE.md` (your existing rules are preserved)
 
 > [!NOTE]
-> Already have a CLAUDE.md? AgentCrow **appends** its section — your existing rules are preserved.
+> Agents are stored globally at `~/.agentcrow/`. Second project onward = instant, no download.
 
 > [!TIP]
-> AgentCrow downloads external agents from [agency-agents](https://github.com/msitarzewski/agency-agents) on first init. Requires `git`.
+> Already have a CLAUDE.md? AgentCrow **appends** its section — your existing rules stay untouched.
 
 <a id="how-it-works"></a>
 ## ⚙️ How It Works
@@ -216,7 +217,7 @@ Simple prompts run normally. AgentCrow only activates for multi-task requests.
 | 🔴 `agentcrow off` | Completely disabled |
 
 > [!IMPORTANT]
-> AgentCrow only adds a CLAUDE.md file. No dependencies, no background processes. `agentcrow off` removes it cleanly.
+> AgentCrow only touches `.claude/CLAUDE.md`. No project dependencies, no `.agr/` folder, no background processes. `agentcrow off` removes it cleanly.
 
 ## 🤝 Contributing
 
