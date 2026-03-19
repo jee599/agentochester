@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { spawn } from "node:child_process";
 import { smartDecompose } from "@/lib/smart-decomposer";
 import { decomposePrompt } from "@/lib/decomposer";
-import { matchAgent } from "@/lib/agents-handler";
+import { matchAgent, getAgentsResponse } from "@/lib/agents-handler";
 
 function runClaude(
   prompt: string,
@@ -56,6 +56,42 @@ function runClaude(
   });
 }
 
+function assembleTeamPrompt(
+  tasks: Array<{ task: { id: string; role: string; action: string; depends_on: string[]; file_scope: string[] }; agent: { name: string; role: string; description: string } }>,
+  originalPrompt: string,
+): string {
+  const sections: string[] = [];
+
+  sections.push("You are an Agent Teams orchestrator. You have a team of specialized agents.");
+  sections.push("Execute ALL tasks below in order. For each task, adopt the agent's role and complete the work.");
+  sections.push("Do NOT ask questions. Make decisions and proceed.");
+  sections.push("Create actual files and write actual code.");
+  sections.push("After completing each task, clearly mark it as [DONE: task_id].");
+  sections.push("");
+  sections.push(`# Original Request`);
+  sections.push(originalPrompt);
+  sections.push("");
+
+  for (const { task, agent } of tasks) {
+    sections.push("---");
+    sections.push(`## ${task.id}: ${agent.name} (${task.role})`);
+    sections.push(`Task: ${task.action}`);
+    if (task.depends_on.length > 0) {
+      sections.push(`Depends on: ${task.depends_on.join(", ")} — use their outputs.`);
+    }
+    if (task.file_scope.length > 0) {
+      sections.push(`File scope: ${task.file_scope.join(", ")}`);
+    }
+    sections.push("");
+  }
+
+  sections.push("---");
+  sections.push("## Final: Orchestrator Summary");
+  sections.push("After all tasks, write a summary: what was done, how pieces connect, and next steps.");
+
+  return sections.join("\n");
+}
+
 export async function POST(request: NextRequest) {
   const { prompt, workingDir } = await request.json();
 
@@ -66,12 +102,15 @@ export async function POST(request: NextRequest) {
     });
   }
 
+  // 1. Decompose
   let tasks;
   try {
     tasks = await smartDecompose(prompt);
   } catch {
     tasks = decomposePrompt(prompt);
   }
+
+  // 2. Match agents
   const matched = await Promise.all(
     tasks.map(async (task) => {
       const result = await matchAgent(task.role, task.action);
@@ -79,7 +118,11 @@ export async function POST(request: NextRequest) {
     })
   );
 
-  const executable = matched.filter((m) => m.agent !== null);
+  const executable = matched.filter((m) => m.agent !== null) as Array<{
+    task: (typeof tasks)[0];
+    agent: NonNullable<(typeof matched)[0]["agent"]>;
+  }>;
+
   if (executable.length === 0) {
     return new Response(JSON.stringify({ error: "No agents matched" }), {
       status: 400,
@@ -87,7 +130,10 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  // SSE stream
+  // 3. Assemble ONE team prompt
+  const teamPrompt = assembleTeamPrompt(executable, prompt);
+
+  // 4. Execute as single claude session — SSE stream
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
@@ -96,118 +142,56 @@ export async function POST(request: NextRequest) {
       }
 
       const cwd = workingDir || process.cwd();
-      const totalStart = Date.now();
 
-      // Send initial plan
+      // Send plan
       send("plan", {
         tasks: executable.map((e) => ({
           id: e.task.id,
           role: e.task.role,
-          agentName: e.agent!.name,
+          agentName: e.agent.name,
           depends_on: e.task.depends_on,
         })),
       });
 
-      const collectedOutputs: Array<{ role: string; agentName: string; action: string; output: string; success: boolean }> = [];
-
-      for (const { task, agent } of executable) {
-        send("task_start", {
-          taskId: task.id,
-          role: task.role,
-          agentName: agent!.name,
-          status: "running",
-        });
-
-        // Build context from previous agents' outputs
-        const prevContext = collectedOutputs
-          .map((o) => `[${o.agentName} (${o.role}) — ${o.success ? "completed" : "failed"}]\n${o.output}`)
-          .join("\n\n---\n\n");
-
-        const agentPrompt = [
-          `You are ${agent!.name} (${agent!.role}).`,
-          "",
-          "[CRITICAL RULES]",
-          "- Do NOT ask questions. Make decisions yourself and proceed.",
-          "- Do NOT ask for confirmation. Just do the work.",
-          "- If you need to choose between options, pick the best one and explain why.",
-          "- Create actual files and write actual code. Do not just describe what to do.",
-          "- Work in the current directory.",
-          "- Build on what previous agents have already created. Read their files before starting.",
-          "",
-          `[Project Context]`,
-          `Original request: ${prompt}`,
-          "",
-          "[Task]",
-          task.action,
-          "",
-          task.file_scope.length > 0 ? `[File Scope]\n${task.file_scope.join(", ")}` : "",
-          prevContext ? `\n[Previous Agent Outputs]\n${prevContext}` : "",
-        ].filter(Boolean).join("\n");
-
-        const result = await runClaude(agentPrompt, cwd, (chunk) => {
-          send("task_output", { taskId: task.id, chunk });
-        });
-
-        collectedOutputs.push({
-          role: task.role,
-          agentName: agent!.name,
-          action: task.action,
-          output: result.output.slice(0, 2000),
-          success: result.success,
-        });
-
-        send("task_done", {
-          taskId: task.id,
-          status: result.success ? "success" : "error",
-          output: result.output,
-          error: result.error,
-          durationMs: result.durationMs,
-        });
-      }
-
-      // Orchestrator — synthesize all agent outputs
+      // Single execution — team prompt
       send("task_start", {
-        taskId: "orchestrator",
-        role: "orchestrator",
-        agentName: "Orchestrator",
+        taskId: "team",
+        role: "agent_teams",
+        agentName: `Agent Teams (${executable.length} agents)`,
         status: "running",
       });
 
-      const agentResults = collectedOutputs
-        .map((o) => `## ${o.agentName} (${o.role})\nTask: ${o.action}\nStatus: ${o.success ? "SUCCESS" : "FAILED"}\nOutput:\n${o.output}`)
-        .join("\n\n---\n\n");
+      const result = await runClaude(teamPrompt, cwd, (chunk) => {
+        send("task_output", { taskId: "team", chunk });
 
-      const orchestratorPrompt = `You are the Orchestrator — the final synthesizer of a multi-agent team.
-
-Original request: "${prompt}"
-
-${collectedOutputs.length} agents executed. Here are their results:
-
-${agentResults}
-
-Now produce a FINAL SYNTHESIS:
-1. Summary of what each agent produced
-2. How all pieces connect together
-3. Gaps or conflicts between agent outputs
-4. Concrete next steps (prioritized)
-
-Write in the same language as the original request. Be structured and actionable.`;
-
-      const orchResult = await runClaude(orchestratorPrompt, cwd, (chunk) => {
-        send("task_output", { taskId: "orchestrator", chunk });
+        // Detect [DONE: task_id] markers to update individual task status
+        const doneMatch = chunk.match(/\[DONE:\s*(task_\d+)\]/);
+        if (doneMatch) {
+          const taskId = doneMatch[1];
+          const info = executable.find((e) => e.task.id === taskId);
+          if (info) {
+            send("task_done", {
+              taskId,
+              role: info.task.role,
+              agentName: info.agent.name,
+              status: "success",
+              durationMs: 0,
+            });
+          }
+        }
       });
 
       send("task_done", {
-        taskId: "orchestrator",
-        role: "orchestrator",
-        agentName: "Orchestrator",
-        status: orchResult.success ? "success" : "error",
-        output: orchResult.output,
-        error: orchResult.error,
-        durationMs: orchResult.durationMs,
+        taskId: "team",
+        role: "agent_teams",
+        agentName: `Agent Teams (${executable.length} agents)`,
+        status: result.success ? "success" : "error",
+        output: result.output,
+        error: result.error,
+        durationMs: result.durationMs,
       });
 
-      send("done", { totalDurationMs: Date.now() - totalStart });
+      send("done", { totalDurationMs: result.durationMs });
       controller.close();
     },
   });

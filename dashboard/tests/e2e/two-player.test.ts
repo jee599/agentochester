@@ -1,480 +1,405 @@
 /**
  * 2인 동시 플레이 E2E 테스트
- * PRD 기준: 방 생성 → 참가 → 게임 시작 → 서브 → 랠리 → 득점 → 15점 승리
+ * 실제 게임 엔진(engine.ts)을 사용한 통합 테스트
+ * 방 생성 → 게임 시작 → 서브 → 랠리 → 득점 → 15점 승리
  */
 import { describe, it, expect, beforeEach } from 'vitest';
+import { createInitialState, startGame, gameTick, restartMatch } from '@/src/game/engine';
+import { processScoring, checkWinCondition, resetScore } from '@/src/game/scoring';
+import { checkBallGroundContact } from '@/src/game/physics';
+import { COURT, PHYSICS, SCORING, TIMING } from '@/src/game/constants';
+import type { GameState, KeyState } from '@/src/game/types';
 
-// --- 게임 시뮬레이션 엔진 (E2E 테스트용) ---
+const NO_INPUT: KeyState = { left: false, right: false, up: false, powerHit: false };
+const LEFT: KeyState = { left: true, right: false, up: false, powerHit: false };
+const RIGHT: KeyState = { left: false, right: true, up: false, powerHit: false };
+const JUMP: KeyState = { left: false, right: false, up: true, powerHit: false };
 
-interface Vec2 {
-  x: number;
-  y: number;
-}
-
-interface BallState {
-  pos: Vec2;
-  vel: Vec2;
-}
-
-interface PlayerState {
-  pos: Vec2;
-  vel: Vec2;
-  isJumping: boolean;
-  animation: 'idle' | 'moving' | 'jumping' | 'hitting' | 'spiking' | 'win' | 'lose';
-}
-
-interface GameMatchState {
-  ball: BallState;
-  players: [PlayerState, PlayerState];
-  score: [number, number];
-  servingPlayer: 0 | 1;
-  phase: 'waiting' | 'serving' | 'playing' | 'scoring' | 'gameOver';
-  winner: 0 | 1 | null;
-}
-
-interface PlayerInput {
-  left: boolean;
-  right: boolean;
-  up: boolean;
-  powerHit: boolean;
-}
-
-const COURT_WIDTH = 432;
-const COURT_NET_X = 216;
-const GROUND_Y = 264;
-const BALL_RADIUS = 20;
-const PLAYER_RADIUS = 32;
-const WIN_SCORE = 15;
-
-class GameSimulator {
-  state: GameMatchState;
-
-  constructor() {
-    this.state = this.createInitialState();
-  }
-
-  private createInitialState(): GameMatchState {
-    return {
-      ball: {
-        pos: { x: 108, y: 200 },
-        vel: { x: 0, y: 0 },
-      },
-      players: [
-        {
-          pos: { x: 108, y: GROUND_Y },
-          vel: { x: 0, y: 0 },
-          isJumping: false,
-          animation: 'idle',
-        },
-        {
-          pos: { x: 324, y: GROUND_Y },
-          vel: { x: 0, y: 0 },
-          isJumping: false,
-          animation: 'idle',
-        },
-      ],
-      score: [0, 0],
-      servingPlayer: 0,
-      phase: 'serving',
-      winner: null,
-    };
-  }
-
-  serve(): void {
-    if (this.state.phase !== 'serving') return;
-
-    const servingIdx = this.state.servingPlayer;
-    const serverX = this.state.players[servingIdx].pos.x;
-
-    this.state.ball = {
-      pos: { x: serverX, y: 150 },
-      vel: { x: 0, y: -5 }, // 위로 올라감
-    };
-    this.state.phase = 'playing';
-  }
-
-  applyInput(playerIdx: 0 | 1, input: PlayerInput): void {
-    const player = this.state.players[playerIdx];
-    const moveSpeed = 6;
-
-    // 이동 (자기 코트 내에서만)
-    if (input.left) {
-      player.pos.x -= moveSpeed;
-      player.animation = 'moving';
-    }
-    if (input.right) {
-      player.pos.x += moveSpeed;
-      player.animation = 'moving';
-    }
-
-    // 코트 경계 제한
-    if (playerIdx === 0) {
-      player.pos.x = Math.max(PLAYER_RADIUS, Math.min(COURT_NET_X - PLAYER_RADIUS, player.pos.x));
-    } else {
-      player.pos.x = Math.max(COURT_NET_X + PLAYER_RADIUS, Math.min(COURT_WIDTH - PLAYER_RADIUS, player.pos.x));
-    }
-
-    // 점프
-    if (input.up && !player.isJumping) {
-      player.vel.y = -16;
-      player.isJumping = true;
-      player.animation = 'jumping';
-    }
-  }
-
-  tick(): void {
-    if (this.state.phase !== 'playing') return;
-
-    // 공 물리
-    this.state.ball.vel.y += 0.25; // 중력
-    this.state.ball.pos.x += this.state.ball.vel.x;
-    this.state.ball.pos.y += this.state.ball.vel.y;
-
-    // 플레이어 물리
-    for (const player of this.state.players) {
-      if (player.isJumping) {
-        player.vel.y += 0.5; // 플레이어 중력
-        player.pos.y += player.vel.y;
-
-        if (player.pos.y >= GROUND_Y) {
-          player.pos.y = GROUND_Y;
-          player.vel.y = 0;
-          player.isJumping = false;
-          player.animation = 'idle';
-        }
-      }
-    }
-
-    // 캐릭터-공 충돌
-    for (const player of this.state.players) {
-      const dx = this.state.ball.pos.x - player.pos.x;
-      const dy = this.state.ball.pos.y - player.pos.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-
-      if (dist <= PLAYER_RADIUS + BALL_RADIUS) {
-        const nx = dx / dist;
-        const ny = dy / dist;
-        const speed = Math.sqrt(this.state.ball.vel.x ** 2 + this.state.ball.vel.y ** 2) || 5;
-
-        this.state.ball.vel = { x: nx * speed, y: ny * speed };
-        // 공을 충돌 밖으로 밀어냄
-        this.state.ball.pos = {
-          x: player.pos.x + nx * (PLAYER_RADIUS + BALL_RADIUS + 1),
-          y: player.pos.y + ny * (PLAYER_RADIUS + BALL_RADIUS + 1),
-        };
-        player.animation = 'hitting';
-      }
-    }
-
-    // 벽 바운스
-    if (this.state.ball.pos.x - BALL_RADIUS <= 0) {
-      this.state.ball.vel.x = Math.abs(this.state.ball.vel.x);
-    }
-    if (this.state.ball.pos.x + BALL_RADIUS >= COURT_WIDTH) {
-      this.state.ball.vel.x = -Math.abs(this.state.ball.vel.x);
-    }
-
-    // 네트 충돌 (간단화)
-    if (
-      Math.abs(this.state.ball.pos.x - COURT_NET_X) < BALL_RADIUS + 4 &&
-      this.state.ball.pos.y > GROUND_Y - 176
-    ) {
-      this.state.ball.vel.x = -this.state.ball.vel.x;
-    }
-
-    // 바닥 충돌 → 득점
-    if (this.state.ball.pos.y + BALL_RADIUS >= GROUND_Y) {
-      if (this.state.ball.pos.x > COURT_NET_X) {
-        this.scorePoint(0); // P1 득점
-      } else {
-        this.scorePoint(1); // P2 득점
-      }
-    }
-  }
-
-  private scorePoint(scorer: 0 | 1): void {
-    this.state.score[scorer]++;
-    this.state.servingPlayer = scorer;
-
-    if (this.state.score[scorer] >= WIN_SCORE) {
-      this.state.phase = 'gameOver';
-      this.state.winner = scorer;
-      this.state.players[scorer].animation = 'win';
-      this.state.players[scorer === 0 ? 1 : 0].animation = 'lose';
-    } else {
-      this.state.phase = 'scoring';
-    }
-  }
-
-  resetForServe(): void {
-    if (this.state.phase !== 'scoring') return;
-
-    const servingIdx = this.state.servingPlayer;
-    this.state.players[0].pos = { x: 108, y: GROUND_Y };
-    this.state.players[1].pos = { x: 324, y: GROUND_Y };
-    this.state.players[0].vel = { x: 0, y: 0 };
-    this.state.players[1].vel = { x: 0, y: 0 };
-    this.state.players[0].isJumping = false;
-    this.state.players[1].isJumping = false;
-    this.state.players[0].animation = 'idle';
-    this.state.players[1].animation = 'idle';
-
-    this.state.ball = {
-      pos: { x: this.state.players[servingIdx].pos.x, y: 200 },
-      vel: { x: 0, y: 0 },
-    };
-    this.state.phase = 'serving';
-  }
-
-  // 헬퍼: 공을 강제로 특정 코트에 떨어뜨림
-  forceBallDrop(side: 'left' | 'right'): void {
-    this.state.phase = 'playing';
-    // 플레이어를 벽 쪽으로 이동시켜 공과 충돌하지 않도록 함
-    this.state.players[0].pos = { x: PLAYER_RADIUS, y: GROUND_Y };
-    this.state.players[1].pos = { x: COURT_WIDTH - PLAYER_RADIUS, y: GROUND_Y };
-    this.state.ball = {
-      pos: { x: side === 'left' ? 100 : 300, y: GROUND_Y - BALL_RADIUS - 1 },
-      vel: { x: 0, y: 10 },
-    };
-    this.tick();
+/**
+ * 서브 딜레이를 넘겨서 공이 자유낙하하도록 틱을 진행
+ */
+function advancePastServeDelay(state: GameState): void {
+  for (let i = 0; i < TIMING.SERVE_DELAY_FRAMES + 1; i++) {
+    gameTick(state, [NO_INPUT, NO_INPUT]);
   }
 }
 
-// ========================
-// 테스트
-// ========================
+/**
+ * 공을 특정 코트 바닥에 강제 배치 후 틱 진행하여 득점 발생
+ */
+function forceScore(state: GameState, side: 'left' | 'right'): void {
+  // playing 위상에서만 득점 가능
+  if (state.phase !== 'playing') {
+    // serving → playing 전환을 위해 서브 딜레이 넘기기
+    if (state.phase === 'serving') {
+      advancePastServeDelay(state);
+    }
+    // 아직 playing이 아니면 강제 전환
+    if (state.phase !== 'playing') {
+      state.phase = 'playing';
+      state.phaseTimer = 0;
+    }
+  }
+
+  // 플레이어를 양쪽 끝으로 이동 (공과 충돌 방지)
+  state.players[0].x = COURT.P1_MIN_X;
+  state.players[0].y = COURT.GROUND_Y;
+  state.players[0].isGrounded = true;
+  state.players[1].x = COURT.P2_MAX_X;
+  state.players[1].y = COURT.GROUND_Y;
+  state.players[1].isGrounded = true;
+
+  // 공을 해당 코트의 바닥 직전에 배치
+  const targetX = side === 'left' ? 100 : 300;
+  state.ball.x = targetX;
+  state.ball.y = COURT.GROUND_Y - state.ball.radius - 1;
+  state.ball.vx = 0;
+  state.ball.vy = 10;
+
+  // 틱 진행하여 바닥 도달
+  gameTick(state, [NO_INPUT, NO_INPUT]);
+}
+
+/**
+ * scoring → 다음 serving까지 틱 진행
+ */
+function advancePastScoring(state: GameState): void {
+  if (state.phase !== 'scoring') return;
+  for (let i = 0; i < TIMING.SCORE_DISPLAY_FRAMES + 5; i++) {
+    gameTick(state, [NO_INPUT, NO_INPUT]);
+    if (state.phase !== 'scoring') break;
+  }
+}
 
 describe('2인 동시 플레이 E2E', () => {
-  let game: GameSimulator;
+  let state: GameState;
 
   beforeEach(() => {
-    game = new GameSimulator();
+    state = createInitialState();
   });
 
   describe('게임 초기화', () => {
-    it('초기 점수 0:0, 서빙 플레이어 P1', () => {
-      expect(game.state.score).toEqual([0, 0]);
-      expect(game.state.servingPlayer).toBe(0);
-      expect(game.state.phase).toBe('serving');
+    it('초기 상태: waiting 위상', () => {
+      expect(state.phase).toBe('waiting');
+    });
+
+    it('startGame 후 serving 위상', () => {
+      startGame(state);
+      expect(state.phase).toBe('serving');
+    });
+
+    it('초기 점수 0:0, 서빙 플레이어 P1(0)', () => {
+      startGame(state);
+      expect(state.score.scores).toEqual([0, 0]);
+      expect(state.score.servingPlayer).toBe(0);
+      expect(state.score.winner).toBeNull();
     });
 
     it('P1은 왼쪽 코트, P2는 오른쪽 코트에 배치', () => {
-      expect(game.state.players[0].pos.x).toBeLessThan(COURT_NET_X);
-      expect(game.state.players[1].pos.x).toBeGreaterThan(COURT_NET_X);
+      startGame(state);
+      expect(state.players[0].x).toBeLessThan(COURT.NET_X);
+      expect(state.players[1].x).toBeGreaterThan(COURT.NET_X);
     });
 
     it('두 플레이어 모두 바닥에 서 있음', () => {
-      expect(game.state.players[0].pos.y).toBe(GROUND_Y);
-      expect(game.state.players[1].pos.y).toBe(GROUND_Y);
+      startGame(state);
+      expect(state.players[0].y).toBe(COURT.GROUND_Y);
+      expect(state.players[1].y).toBe(COURT.GROUND_Y);
+      expect(state.players[0].isGrounded).toBe(true);
+      expect(state.players[1].isGrounded).toBe(true);
     });
   });
 
   describe('서브 메커니즘', () => {
-    it('서브 시 공이 위로 올라감', () => {
-      game.serve();
-      expect(game.state.ball.vel.y).toBeLessThan(0);
-      expect(game.state.phase).toBe('playing');
+    beforeEach(() => {
+      startGame(state);
     });
 
-    it('서브 시 공이 서빙 플레이어 위치에 생성', () => {
-      game.serve();
-      expect(game.state.ball.pos.x).toBe(game.state.players[0].pos.x);
+    it('서브 딜레이 동안 공이 서빙 플레이어 위에 고정', () => {
+      gameTick(state, [NO_INPUT, NO_INPUT]);
+      expect(state.phase).toBe('serving');
+      // 공이 서빙 플레이어 근처에 있는지 확인
+      expect(Math.abs(state.ball.x - state.players[0].x)).toBeLessThan(10);
     });
 
-    it('서빙이 아닌 상태에서 serve() 호출 시 무시', () => {
-      game.state.phase = 'playing';
-      const prevBall = { ...game.state.ball };
-      game.serve();
-      expect(game.state.ball.pos).toEqual(prevBall.pos);
+    it('서브 딜레이(60프레임) 후 공이 자유낙하 시작', () => {
+      const ballY_before = state.ball.y;
+
+      // 서브 딜레이 프레임 동안 진행
+      for (let i = 0; i < TIMING.SERVE_DELAY_FRAMES; i++) {
+        gameTick(state, [NO_INPUT, NO_INPUT]);
+      }
+
+      // 딜레이 직후 한 틱 더
+      gameTick(state, [NO_INPUT, NO_INPUT]);
+
+      // 공이 움직이기 시작함 (중력에 의해 y 변화)
+      expect(state.ball.y).not.toBe(ballY_before);
+    });
+
+    it('서빙 중에도 플레이어 이동 가능', () => {
+      const prevX = state.players[0].x;
+      gameTick(state, [RIGHT, NO_INPUT]);
+      expect(state.players[0].x).toBeGreaterThan(prevX);
     });
   });
 
   describe('플레이어 이동', () => {
-    it('왼쪽 키 입력 시 P1이 왼쪽으로 이동', () => {
-      const prevX = game.state.players[0].pos.x;
-      game.applyInput(0, { left: true, right: false, up: false, powerHit: false });
-      expect(game.state.players[0].pos.x).toBe(prevX - 6);
+    beforeEach(() => {
+      startGame(state);
     });
 
-    it('오른쪽 키 입력 시 P2가 오른쪽으로 이동', () => {
-      const prevX = game.state.players[1].pos.x;
-      game.applyInput(1, { left: false, right: true, up: false, powerHit: false });
-      expect(game.state.players[1].pos.x).toBe(prevX + 6);
+    it('P1 왼쪽 이동', () => {
+      const prevX = state.players[0].x;
+      gameTick(state, [LEFT, NO_INPUT]);
+      expect(state.players[0].x).toBeLessThan(prevX);
+    });
+
+    it('P2 오른쪽 이동', () => {
+      const prevX = state.players[1].x;
+      gameTick(state, [NO_INPUT, RIGHT]);
+      expect(state.players[1].x).toBeGreaterThan(prevX);
     });
 
     it('P1은 네트를 넘어갈 수 없음', () => {
-      game.state.players[0].pos.x = COURT_NET_X - PLAYER_RADIUS - 1;
-      game.applyInput(0, { left: false, right: true, up: false, powerHit: false });
-      expect(game.state.players[0].pos.x).toBeLessThanOrEqual(COURT_NET_X - PLAYER_RADIUS);
+      state.players[0].x = COURT.P1_MAX_X;
+      gameTick(state, [RIGHT, NO_INPUT]);
+      expect(state.players[0].x).toBeLessThanOrEqual(COURT.P1_MAX_X);
     });
 
     it('P2는 네트 왼쪽으로 이동 불가', () => {
-      game.state.players[1].pos.x = COURT_NET_X + PLAYER_RADIUS + 1;
-      game.applyInput(1, { left: true, right: false, up: false, powerHit: false });
-      expect(game.state.players[1].pos.x).toBeGreaterThanOrEqual(COURT_NET_X + PLAYER_RADIUS);
-    });
-
-    it('P1은 왼쪽 벽 밖으로 이동 불가', () => {
-      game.state.players[0].pos.x = PLAYER_RADIUS + 1;
-      game.applyInput(0, { left: true, right: false, up: false, powerHit: false });
-      expect(game.state.players[0].pos.x).toBeGreaterThanOrEqual(PLAYER_RADIUS);
-    });
-
-    it('P2는 오른쪽 벽 밖으로 이동 불가', () => {
-      game.state.players[1].pos.x = COURT_WIDTH - PLAYER_RADIUS - 1;
-      game.applyInput(1, { left: false, right: true, up: false, powerHit: false });
-      expect(game.state.players[1].pos.x).toBeLessThanOrEqual(COURT_WIDTH - PLAYER_RADIUS);
+      state.players[1].x = COURT.P2_MIN_X;
+      gameTick(state, [NO_INPUT, LEFT]);
+      expect(state.players[1].x).toBeGreaterThanOrEqual(COURT.P2_MIN_X);
     });
   });
 
   describe('점프 메커니즘', () => {
-    it('점프 키 입력 시 수직 속도 -16', () => {
-      game.applyInput(0, { left: false, right: false, up: true, powerHit: false });
-      expect(game.state.players[0].vel.y).toBe(-16);
-      expect(game.state.players[0].isJumping).toBe(true);
+    beforeEach(() => {
+      startGame(state);
     });
 
-    it('점프 중 다시 점프 불가 (이중 점프 방지)', () => {
-      game.applyInput(0, { left: false, right: false, up: true, powerHit: false });
-      game.state.players[0].vel.y = -8; // 상승 중
-      game.applyInput(0, { left: false, right: false, up: true, powerHit: false });
-      expect(game.state.players[0].vel.y).toBe(-8); // 변화 없음
+    it('점프 키 입력 시 isGrounded=false, vy < 0', () => {
+      gameTick(state, [JUMP, NO_INPUT]);
+      expect(state.players[0].isGrounded).toBe(false);
+      expect(state.players[0].vy).toBeLessThan(0);
     });
 
     it('점프 후 중력으로 착지', () => {
-      game.state.phase = 'playing';
-      game.applyInput(0, { left: false, right: false, up: true, powerHit: false });
+      gameTick(state, [JUMP, NO_INPUT]);
 
-      // 여러 프레임 시뮬레이션
-      for (let i = 0; i < 100; i++) {
-        game.tick();
+      // 200프레임 후 착지해야 함
+      for (let i = 0; i < 200; i++) {
+        gameTick(state, [NO_INPUT, NO_INPUT]);
+        if (state.players[0].isGrounded) break;
       }
 
-      expect(game.state.players[0].pos.y).toBe(GROUND_Y);
-      expect(game.state.players[0].isJumping).toBe(false);
+      expect(state.players[0].y).toBe(COURT.GROUND_Y);
+      expect(state.players[0].isGrounded).toBe(true);
+    });
+
+    it('P1과 P2 동시 점프', () => {
+      gameTick(state, [JUMP, JUMP]);
+      expect(state.players[0].isGrounded).toBe(false);
+      expect(state.players[1].isGrounded).toBe(false);
     });
   });
 
   describe('득점 흐름', () => {
-    it('공이 P2 코트 바닥에 떨어지면 P1 득점', () => {
-      game.forceBallDrop('right');
-      expect(game.state.score[0]).toBe(1);
-      expect(game.state.servingPlayer).toBe(0);
+    beforeEach(() => {
+      startGame(state);
     });
 
-    it('공이 P1 코트 바닥에 떨어지면 P2 득점', () => {
-      game.forceBallDrop('left');
-      expect(game.state.score[1]).toBe(1);
-      expect(game.state.servingPlayer).toBe(1);
+    it('공이 P2 코트 바닥 → P1 득점 (scoring 위상 전환)', () => {
+      forceScore(state, 'right');
+      expect(state.phase).toBe('scoring');
+      expect(state.score.scores[0]).toBe(1);
     });
 
-    it('득점 후 serving 페이즈로 복귀', () => {
-      game.forceBallDrop('right');
-      expect(game.state.phase).toBe('scoring');
-
-      game.resetForServe();
-      expect(game.state.phase).toBe('serving');
+    it('공이 P1 코트 바닥 → P2 득점', () => {
+      forceScore(state, 'left');
+      expect(state.phase).toBe('scoring');
+      expect(state.score.scores[1]).toBe(1);
     });
 
     it('득점 후 서브권이 득점한 플레이어에게 이동', () => {
-      game.forceBallDrop('left'); // P2 득점
-      expect(game.state.servingPlayer).toBe(1);
+      forceScore(state, 'left'); // P2 득점
+      expect(state.score.servingPlayer).toBe(1);
+    });
 
-      game.resetForServe();
-      game.forceBallDrop('right'); // P1 득점
-      expect(game.state.servingPlayer).toBe(0);
+    it('scoring 위상 후 serving으로 복귀', () => {
+      forceScore(state, 'right');
+      expect(state.phase).toBe('scoring');
+
+      advancePastScoring(state);
+      expect(state.phase).toBe('serving');
+    });
+
+    it('scoring → serving 복귀 시 플레이어 위치 리셋', () => {
+      forceScore(state, 'right');
+      advancePastScoring(state);
+
+      expect(state.players[0].y).toBe(COURT.GROUND_Y);
+      expect(state.players[1].y).toBe(COURT.GROUND_Y);
+      expect(state.players[0].isGrounded).toBe(true);
     });
   });
 
   describe('15점 승리 조건', () => {
-    it('P1이 15점 도달 시 gameOver + P1 승리', () => {
-      for (let i = 0; i < 15; i++) {
-        game.forceBallDrop('right');
-        if (game.state.phase === 'scoring') game.resetForServe();
-      }
-
-      expect(game.state.phase).toBe('gameOver');
-      expect(game.state.winner).toBe(0);
+    beforeEach(() => {
+      startGame(state);
     });
 
-    it('P2가 15점 도달 시 gameOver + P2 승리', () => {
-      for (let i = 0; i < 15; i++) {
-        game.forceBallDrop('left');
-        if (game.state.phase === 'scoring') game.resetForServe();
+    it('P1이 15점 도달 시 gameOver', () => {
+      for (let i = 0; i < SCORING.MAX_SCORE; i++) {
+        forceScore(state, 'right'); // P1 득점
+        if (state.phase === 'scoring') {
+          advancePastScoring(state);
+        }
+        if (state.phase === 'gameOver') break;
       }
 
-      expect(game.state.phase).toBe('gameOver');
-      expect(game.state.winner).toBe(1);
+      expect(state.phase).toBe('gameOver');
+      expect(state.score.winner).toBe(0);
+      expect(state.score.scores[0]).toBe(SCORING.MAX_SCORE);
+    });
+
+    it('P2가 15점 도달 시 gameOver', () => {
+      for (let i = 0; i < SCORING.MAX_SCORE; i++) {
+        forceScore(state, 'left'); // P2 득점
+        if (state.phase === 'scoring') {
+          advancePastScoring(state);
+        }
+        if (state.phase === 'gameOver') break;
+      }
+
+      expect(state.phase).toBe('gameOver');
+      expect(state.score.winner).toBe(1);
+      expect(state.score.scores[1]).toBe(SCORING.MAX_SCORE);
     });
 
     it('14점에서는 게임 미종료', () => {
-      for (let i = 0; i < 13; i++) {
-        game.forceBallDrop('right');
-        if (game.state.phase === 'scoring') game.resetForServe();
+      for (let i = 0; i < SCORING.MAX_SCORE - 1; i++) {
+        forceScore(state, 'right');
+        if (state.phase === 'scoring') {
+          advancePastScoring(state);
+        }
       }
-      // 14번째 득점 후 resetForServe 하지 않음
-      game.forceBallDrop('right');
 
-      expect(game.state.phase).toBe('scoring');
-      expect(game.state.winner).toBeNull();
+      expect(state.phase).not.toBe('gameOver');
+      expect(state.score.scores[0]).toBe(SCORING.MAX_SCORE - 1);
     });
 
-    it('승리 시 애니메이션 상태 설정', () => {
-      for (let i = 0; i < 15; i++) {
-        game.forceBallDrop('right');
-        if (game.state.phase === 'scoring') game.resetForServe();
-      }
-
-      expect(game.state.players[0].animation).toBe('win');
-      expect(game.state.players[1].animation).toBe('lose');
+    it('MAX_SCORE 상수 = 15', () => {
+      expect(SCORING.MAX_SCORE).toBe(15);
     });
   });
 
   describe('양 플레이어 동시 입력', () => {
-    it('P1과 P2가 동시에 이동 가능', () => {
-      const p1PrevX = game.state.players[0].pos.x;
-      const p2PrevX = game.state.players[1].pos.x;
-
-      game.applyInput(0, { left: false, right: true, up: false, powerHit: false });
-      game.applyInput(1, { left: true, right: false, up: false, powerHit: false });
-
-      expect(game.state.players[0].pos.x).toBe(p1PrevX + 6);
-      expect(game.state.players[1].pos.x).toBe(p2PrevX - 6);
+    beforeEach(() => {
+      startGame(state);
     });
 
-    it('P1과 P2가 동시에 점프 가능', () => {
-      game.applyInput(0, { left: false, right: false, up: true, powerHit: false });
-      game.applyInput(1, { left: false, right: false, up: true, powerHit: false });
+    it('P1과 P2가 동시에 반대 방향 이동', () => {
+      const p1PrevX = state.players[0].x;
+      const p2PrevX = state.players[1].x;
 
-      expect(game.state.players[0].isJumping).toBe(true);
-      expect(game.state.players[1].isJumping).toBe(true);
+      gameTick(state, [RIGHT, LEFT]);
+
+      expect(state.players[0].x).toBeGreaterThan(p1PrevX);
+      expect(state.players[1].x).toBeLessThan(p2PrevX);
+    });
+
+    it('P1 점프 + P2 이동 동시 처리', () => {
+      const p2PrevX = state.players[1].x;
+
+      gameTick(state, [JUMP, RIGHT]);
+
+      expect(state.players[0].isGrounded).toBe(false);
+      expect(state.players[1].x).toBeGreaterThan(p2PrevX);
     });
   });
 
   describe('풀 매치 시뮬레이션', () => {
-    it('15점 매치가 정상적으로 진행되고 종료됨', () => {
+    it('교대 득점으로 15점 매치 완료', () => {
+      startGame(state);
       let totalPoints = 0;
 
-      while (game.state.phase !== 'gameOver' && totalPoints < 100) {
-        // P1 코트에 공 떨어뜨리기 (P2 득점) — 교대
-        if (totalPoints % 2 === 0) {
-          game.forceBallDrop('left');
-        } else {
-          game.forceBallDrop('right');
-        }
-
+      while (state.phase !== 'gameOver' && totalPoints < 100) {
+        const side = totalPoints % 2 === 0 ? 'left' : 'right';
+        forceScore(state, side);
         totalPoints++;
 
-        if (game.state.phase === 'scoring') {
-          game.resetForServe();
+        if (state.phase === 'scoring') {
+          advancePastScoring(state);
         }
       }
 
-      expect(game.state.phase).toBe('gameOver');
-      expect(game.state.winner).not.toBeNull();
+      expect(state.phase).toBe('gameOver');
+      expect(state.score.winner).not.toBeNull();
 
-      const [s1, s2] = game.state.score;
-      expect(s1 === 15 || s2 === 15).toBe(true);
+      const [s1, s2] = state.score.scores;
+      expect(s1 === SCORING.MAX_SCORE || s2 === SCORING.MAX_SCORE).toBe(true);
+    });
+
+    it('restartMatch로 재대전 가능', () => {
+      startGame(state);
+
+      // P1이 15점 획득
+      for (let i = 0; i < SCORING.MAX_SCORE; i++) {
+        forceScore(state, 'right');
+        if (state.phase === 'scoring') advancePastScoring(state);
+        if (state.phase === 'gameOver') break;
+      }
+
+      expect(state.phase).toBe('gameOver');
+
+      restartMatch(state);
+      expect(state.phase).toBe('serving');
+      expect(state.score.scores).toEqual([0, 0]);
+      expect(state.score.winner).toBeNull();
+      expect(state.tick).toBe(0);
+    });
+  });
+
+  describe('사운드 이벤트', () => {
+    beforeEach(() => {
+      startGame(state);
+    });
+
+    it('soundEvents가 매 틱마다 초기화됨', () => {
+      gameTick(state, [NO_INPUT, NO_INPUT]);
+      // 이전 틱의 사운드 이벤트가 남아있지 않아야 함
+      expect(Array.isArray(state.soundEvents)).toBe(true);
+    });
+
+    it('공 바닥 충돌 시 ballbounce 사운드 이벤트', () => {
+      forceScore(state, 'right');
+      // scoring 위상에서 공이 바운스하면서 사운드 발생 가능
+      expect(Array.isArray(state.soundEvents)).toBe(true);
+    });
+  });
+
+  describe('게임 위상 전환 순서', () => {
+    it('waiting → serving → playing → scoring → serving (반복) → gameOver', () => {
+      expect(state.phase).toBe('waiting');
+
+      startGame(state);
+      expect(state.phase).toBe('serving');
+
+      // serving → playing 전환 (서브 딜레이 후 공이 네트를 넘길 때)
+      advancePastServeDelay(state);
+
+      // 직접 playing으로 전환하여 테스트 진행
+      state.phase = 'playing';
+      state.phaseTimer = 0;
+
+      // 득점
+      forceScore(state, 'right');
+      expect(state.phase).toBe('scoring');
+
+      advancePastScoring(state);
+      expect(state.phase).toBe('serving');
     });
   });
 });

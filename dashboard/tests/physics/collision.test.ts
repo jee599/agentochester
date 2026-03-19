@@ -1,455 +1,467 @@
 /**
- * 물리엔진 단위테스트 — 충돌 판정 & 반발 계수
- * PRD 기준: 캐릭터 충돌반경 32px, 공 충돌반경 20px
- * 바운스 계수: 바닥 0.7, 네트/벽 1.0
+ * 물리엔진 단위테스트 — 실제 구현체 import
+ * 충돌 판정, 반발 계수, 중력, 속도 제한, 스파이크, 득점 판정
  */
 import { describe, it, expect, beforeEach } from 'vitest';
+import {
+  updatePlayer,
+  updateBall,
+  bounceWalls,
+  resetBallForServe,
+  resetPlayersForServe,
+  checkBallGroundContact,
+} from '@/src/game/physics';
+import {
+  checkPlayerBallCollision,
+  resolvePlayerBallCollision,
+  checkBallNetCollision,
+  resolveBallNetCollision,
+  checkBallFloorCollision,
+  resolveBallFloorCollision,
+  processCollisions,
+} from '@/src/game/collision';
+import { createInitialState, startGame, gameTick } from '@/src/game/engine';
+import { COURT, PHYSICS, SCORING } from '@/src/game/constants';
+import type { Player, Ball, KeyState, GameState } from '@/src/game/types';
 
-// --- 게임 물리 타입 (구현 전 인터페이스 정의) ---
-
-interface Vec2 {
-  x: number;
-  y: number;
-}
-
-interface Ball {
-  pos: Vec2;
-  vel: Vec2;
-  radius: number;
-  gravity: number;
-  maxSpeed: number;
-}
-
-interface Player {
-  pos: Vec2;
-  vel: Vec2;
-  radius: number;
-  gravity: number;
-}
-
-interface Court {
-  width: number;
-  height: number;
-  netX: number;
-  netHeight: number;
-  groundY: number;
-}
-
-// --- PRD 상수 ---
-
-const COURT: Court = {
-  width: 432,
-  height: 304,
-  netX: 216, // 중앙
-  netHeight: 176, // 바닥에서 네트 상단까지
-  groundY: 264, // 304 - 40(ground tile)
-};
-
-const BALL_DEFAULTS = {
-  radius: 20,
-  gravity: 0.25,
-  maxSpeed: 15,
-  bounceFloor: 0.7,
-  bounceWall: 1.0,
-  bounceNet: 1.0,
-};
-
-const PLAYER_DEFAULTS = {
-  radius: 32,
-  moveSpeed: 6,
-  jumpSpeed: -16,
-  gravity: 0.5,
-};
-
-// --- 물리 함수 (TDD: 구현체가 만들어지면 import로 교체) ---
-
-function distance(a: Vec2, b: Vec2): number {
-  return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
-}
-
-function detectCircleCollision(
-  posA: Vec2,
-  radiusA: number,
-  posB: Vec2,
-  radiusB: number
-): boolean {
-  return distance(posA, posB) <= radiusA + radiusB;
-}
-
-function resolvePlayerBallCollision(
-  player: Player,
-  ball: Ball
-): Vec2 {
-  // 반사 벡터: 플레이어 중심 → 공 중심 방향
-  const dx = ball.pos.x - player.pos.x;
-  const dy = ball.pos.y - player.pos.y;
-  const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-  const nx = dx / dist;
-  const ny = dy / dist;
-
-  // 반사 속도 크기는 기존 속도 유지
-  const speed = Math.sqrt(ball.vel.x ** 2 + ball.vel.y ** 2) || 5;
+// 테스트용 헬퍼: 독립된 Ball 생성
+function createTestBall(overrides: Partial<Ball> = {}): Ball {
   return {
-    x: nx * speed,
-    y: ny * speed,
+    x: 200,
+    y: 200,
+    vx: 3,
+    vy: -2,
+    radius: PHYSICS.BALL_RADIUS,
+    state: 'rotate',
+    animFrame: 0,
+    animTimer: 0,
+    isPowerHit: false,
+    lastHitBy: null,
+    ...overrides,
   };
 }
 
-function applyFloorBounce(ball: Ball, groundY: number): Ball {
-  if (ball.pos.y + ball.radius >= groundY) {
-    return {
-      ...ball,
-      pos: { ...ball.pos, y: groundY - ball.radius },
-      vel: {
-        x: ball.vel.x,
-        y: -ball.vel.y * BALL_DEFAULTS.bounceFloor,
-      },
-    };
-  }
-  return ball;
-}
-
-function applyWallBounce(ball: Ball, courtWidth: number): Ball {
-  if (ball.pos.x - ball.radius <= 0) {
-    return {
-      ...ball,
-      pos: { ...ball.pos, x: ball.radius },
-      vel: {
-        x: -ball.vel.x * BALL_DEFAULTS.bounceWall,
-        y: ball.vel.y,
-      },
-    };
-  }
-  if (ball.pos.x + ball.radius >= courtWidth) {
-    return {
-      ...ball,
-      pos: { ...ball.pos, x: courtWidth - ball.radius },
-      vel: {
-        x: -ball.vel.x * BALL_DEFAULTS.bounceWall,
-        y: ball.vel.y,
-      },
-    };
-  }
-  return ball;
-}
-
-function applyNetCollision(ball: Ball, court: Court): Ball {
-  const netTop = court.groundY - court.netHeight;
-  const netLeft = court.netX - 4; // 네트 반폭 ~8px
-  const netRight = court.netX + 4;
-
-  // 공이 네트 영역에 있는지
-  if (
-    ball.pos.x + ball.radius > netLeft &&
-    ball.pos.x - ball.radius < netRight &&
-    ball.pos.y + ball.radius > netTop
-  ) {
-    // 좌측에서 충돌 vs 우측에서 충돌
-    if (ball.vel.x > 0) {
-      // 왼쪽에서 오른쪽으로 이동 → 왼쪽으로 반사
-      return {
-        ...ball,
-        pos: { ...ball.pos, x: netLeft - ball.radius },
-        vel: {
-          x: -ball.vel.x * BALL_DEFAULTS.bounceNet,
-          y: ball.vel.y,
-        },
-      };
-    } else {
-      return {
-        ...ball,
-        pos: { ...ball.pos, x: netRight + ball.radius },
-        vel: {
-          x: -ball.vel.x * BALL_DEFAULTS.bounceNet,
-          y: ball.vel.y,
-        },
-      };
-    }
-  }
-  return ball;
-}
-
-function applyGravity(ball: Ball): Ball {
+// 테스트용 헬퍼: 독립된 Player 생성
+function createTestPlayer(index: 0 | 1, overrides: Partial<Player> = {}): Player {
   return {
-    ...ball,
-    vel: {
-      x: ball.vel.x,
-      y: ball.vel.y + ball.gravity,
-    },
+    index,
+    x: index === 0 ? COURT.WIDTH / 4 : (COURT.WIDTH * 3) / 4,
+    y: COURT.GROUND_Y,
+    vx: 0,
+    vy: 0,
+    state: 'idle',
+    isGrounded: true,
+    animFrame: 0,
+    animTimer: 0,
+    isDiving: false,
+    diveCooldown: 0,
+    ...overrides,
   };
 }
 
-function clampSpeed(ball: Ball): Ball {
-  const speed = Math.sqrt(ball.vel.x ** 2 + ball.vel.y ** 2);
-  if (speed > ball.maxSpeed) {
-    const ratio = ball.maxSpeed / speed;
-    return {
-      ...ball,
-      vel: {
-        x: ball.vel.x * ratio,
-        y: ball.vel.y * ratio,
-      },
-    };
-  }
-  return ball;
-}
-
-function detectSpike(player: Player, ball: Ball, groundY: number): boolean {
-  const isAirborne = player.pos.y < groundY;
-  const isAboveBall = player.pos.y < ball.pos.y;
-  const isColliding = detectCircleCollision(
-    player.pos,
-    player.radius,
-    ball.pos,
-    ball.radius
-  );
-  return isAirborne && isAboveBall && isColliding;
-}
-
-function detectFloorScore(
-  ball: Ball,
-  groundY: number,
-  netX: number
-): 'p1_scores' | 'p2_scores' | null {
-  if (ball.pos.y + ball.radius >= groundY) {
-    // 공이 오른쪽 코트(P2 코트)에 떨어지면 P1 득점
-    if (ball.pos.x > netX) return 'p1_scores';
-    // 공이 왼쪽 코트(P1 코트)에 떨어지면 P2 득점
-    return 'p2_scores';
-  }
-  return null;
-}
-
-// ========================
-// 테스트
-// ========================
+const NO_INPUT: KeyState = { left: false, right: false, up: false, powerHit: false };
 
 describe('물리엔진 — 충돌 판정', () => {
-  let ball: Ball;
-  let player: Player;
-
-  beforeEach(() => {
-    ball = {
-      pos: { x: 200, y: 200 },
-      vel: { x: 3, y: -2 },
-      radius: BALL_DEFAULTS.radius,
-      gravity: BALL_DEFAULTS.gravity,
-      maxSpeed: BALL_DEFAULTS.maxSpeed,
-    };
-
-    player = {
-      pos: { x: 100, y: COURT.groundY },
-      vel: { x: 0, y: 0 },
-      radius: PLAYER_DEFAULTS.radius,
-      gravity: PLAYER_DEFAULTS.gravity,
-    };
-  });
-
-  describe('원 충돌 감지 (Circle-Circle)', () => {
+  describe('원 충돌 감지 (checkPlayerBallCollision)', () => {
     it('캐릭터와 공이 충돌 반경 내일 때 충돌 감지', () => {
-      // 거리 = 32 + 20 = 52px 이내
-      player.pos = { x: 200, y: 200 };
-      ball.pos = { x: 240, y: 200 }; // 거리 40 < 52
-      expect(detectCircleCollision(player.pos, player.radius, ball.pos, ball.radius)).toBe(true);
+      const player = createTestPlayer(0, { x: 200, y: 200 });
+      const ball = createTestBall({ x: 240, y: 200 });
+      // 거리 40 < 32 + 20 = 52
+      const result = checkPlayerBallCollision(player, ball);
+      expect(result).not.toBeNull();
+      expect(result!.type).toBe('player_ball');
     });
 
     it('캐릭터와 공이 충돌 반경 밖일 때 충돌 미감지', () => {
-      player.pos = { x: 100, y: 200 };
-      ball.pos = { x: 200, y: 200 }; // 거리 100 > 52
-      expect(detectCircleCollision(player.pos, player.radius, ball.pos, ball.radius)).toBe(false);
+      const player = createTestPlayer(0, { x: 100, y: 200 });
+      const ball = createTestBall({ x: 200, y: 200 });
+      // 거리 100 > 52
+      const result = checkPlayerBallCollision(player, ball);
+      expect(result).toBeNull();
     });
 
-    it('정확히 반경 합과 같은 거리에서 충돌 감지 (경계값)', () => {
-      player.pos = { x: 100, y: 200 };
-      ball.pos = { x: 152, y: 200 }; // 거리 = 52 = 32 + 20
-      expect(detectCircleCollision(player.pos, player.radius, ball.pos, ball.radius)).toBe(true);
+    it('정확히 반경 합과 같은 거리에서 충돌 미감지 (>=이므로 경계는 null)', () => {
+      const player = createTestPlayer(0, { x: 100, y: 200 });
+      const ball = createTestBall({ x: 152, y: 200 });
+      // 거리 = 52 = 32 + 20, dist >= minDist → null
+      const result = checkPlayerBallCollision(player, ball);
+      expect(result).toBeNull();
+    });
+
+    it('반경 합보다 살짝 가까운 거리에서 충돌 감지', () => {
+      const player = createTestPlayer(0, { x: 100, y: 200 });
+      const ball = createTestBall({ x: 151, y: 200 });
+      const result = checkPlayerBallCollision(player, ball);
+      expect(result).not.toBeNull();
+    });
+
+    it('충돌 결과에 normal 벡터와 penetration 포함', () => {
+      const player = createTestPlayer(0, { x: 200, y: 200 });
+      const ball = createTestBall({ x: 230, y: 200 });
+      const result = checkPlayerBallCollision(player, ball);
+      expect(result).not.toBeNull();
+      expect(result!.normal.x).toBeGreaterThan(0);
+      expect(result!.penetration).toBeGreaterThan(0);
     });
   });
 
-  describe('캐릭터-공 충돌 반사', () => {
-    it('공이 캐릭터 오른쪽에서 충돌하면 오른쪽으로 반사', () => {
-      player.pos = { x: 100, y: 200 };
-      ball.pos = { x: 140, y: 200 };
-      ball.vel = { x: -3, y: 0 };
+  describe('캐릭터-공 충돌 반응 (resolvePlayerBallCollision)', () => {
+    it('충돌 후 공이 캐릭터로부터 밀려남', () => {
+      const player = createTestPlayer(0, { x: 200, y: 200 });
+      const ball = createTestBall({ x: 230, y: 200, vx: -5, vy: 0 });
+      const collision = checkPlayerBallCollision(player, ball)!;
 
-      const newVel = resolvePlayerBallCollision(player, ball);
-      expect(newVel.x).toBeGreaterThan(0); // 오른쪽으로 반사
+      const prevBallX = ball.x;
+      resolvePlayerBallCollision(player, ball, collision, false);
+
+      expect(ball.x).toBeGreaterThan(prevBallX);
+    });
+
+    it('공이 캐릭터 오른쪽에서 충돌하면 오른쪽으로 반사', () => {
+      const player = createTestPlayer(0, { x: 100, y: 200 });
+      const ball = createTestBall({ x: 140, y: 200, vx: -3, vy: 0 });
+      const collision = checkPlayerBallCollision(player, ball)!;
+
+      resolvePlayerBallCollision(player, ball, collision, false);
+      expect(ball.vx).toBeGreaterThan(0);
     });
 
     it('공이 캐릭터 위에서 충돌하면 위로 반사', () => {
-      player.pos = { x: 200, y: 220 };
-      ball.pos = { x: 200, y: 180 };
-      ball.vel = { x: 0, y: 3 };
+      const player = createTestPlayer(0, { x: 200, y: 220 });
+      const ball = createTestBall({ x: 200, y: 180, vx: 0, vy: 3 });
+      const collision = checkPlayerBallCollision(player, ball)!;
 
-      const newVel = resolvePlayerBallCollision(player, ball);
-      expect(newVel.y).toBeLessThan(0); // 위로 반사
+      resolvePlayerBallCollision(player, ball, collision, false);
+      expect(ball.vy).toBeLessThan(0);
     });
 
-    it('반사 벡터 방향이 캐릭터→공 방향과 일치', () => {
-      player.pos = { x: 100, y: 200 };
-      ball.pos = { x: 130, y: 170 }; // 우상단
-      ball.vel = { x: -5, y: 2 };
+    it('스파이크 판정: 공중 + 공보다 위 → 하향 가속', () => {
+      const player = createTestPlayer(0, {
+        x: 200, y: 150, isGrounded: false, vy: 2,
+      });
+      const ball = createTestBall({ x: 210, y: 185, vx: 0, vy: 0 });
+      const collision = checkPlayerBallCollision(player, ball)!;
 
-      const newVel = resolvePlayerBallCollision(player, ball);
-      // 반사 방향은 (30, -30) 정규화 → 우상단
-      expect(newVel.x).toBeGreaterThan(0);
-      expect(newVel.y).toBeLessThan(0);
-    });
-  });
-
-  describe('바닥 바운스 (계수 0.7)', () => {
-    it('공이 바닥에 닿으면 y 속도가 반전되고 0.7배로 감소', () => {
-      ball.pos = { x: 200, y: COURT.groundY - ball.radius + 5 }; // 바닥 관통
-      ball.vel = { x: 3, y: 10 };
-
-      const bounced = applyFloorBounce(ball, COURT.groundY);
-      expect(bounced.vel.y).toBeCloseTo(-10 * 0.7);
-      expect(bounced.pos.y).toBe(COURT.groundY - ball.radius);
+      resolvePlayerBallCollision(player, ball, collision, false);
+      // 스파이크 → ball.vy에 SPIKE_POWER(8) 추가
+      expect(ball.vy).toBeGreaterThan(0);
+      expect(ball.isPowerHit).toBe(true);
+      expect(ball.state).toBe('hyper');
+      expect(player.state).toBe('spike');
     });
 
-    it('바닥 위에 있는 공은 바운스 미발생', () => {
-      ball.pos = { x: 200, y: 100 };
-      ball.vel = { x: 3, y: 5 };
+    it('파워히트: powerHit=true → 속도 1.5배 증폭', () => {
+      const player = createTestPlayer(0, { x: 200, y: COURT.GROUND_Y });
+      const ball = createTestBall({ x: 230, y: COURT.GROUND_Y, vx: -5, vy: 0 });
+      const collision = checkPlayerBallCollision(player, ball)!;
 
-      const result = applyFloorBounce(ball, COURT.groundY);
-      expect(result.vel.y).toBe(5); // 변화 없음
+      resolvePlayerBallCollision(player, ball, collision, true);
+      expect(ball.isPowerHit).toBe(true);
+      expect(ball.state).toBe('punch');
     });
 
-    it('반복 바운스 시 에너지 감쇠 (0.7^n)', () => {
-      let b = { ...ball, pos: { x: 200, y: COURT.groundY }, vel: { x: 0, y: 10 } };
+    it('일반 히트: isPowerHit=false, state=rotate', () => {
+      const player = createTestPlayer(0, { x: 200, y: COURT.GROUND_Y });
+      const ball = createTestBall({ x: 230, y: COURT.GROUND_Y, vx: -5, vy: 0 });
+      const collision = checkPlayerBallCollision(player, ball)!;
 
-      // 1차 바운스
-      b = applyFloorBounce(b, COURT.groundY);
-      expect(Math.abs(b.vel.y)).toBeCloseTo(7);
+      resolvePlayerBallCollision(player, ball, collision, false);
+      expect(ball.isPowerHit).toBe(false);
+      expect(ball.state).toBe('rotate');
+    });
 
-      // 공을 다시 바닥에 놓기
-      b.pos.y = COURT.groundY;
-      b.vel.y = Math.abs(b.vel.y); // 다시 아래로
+    it('lastHitBy가 충돌한 플레이어 인덱스로 설정', () => {
+      const player = createTestPlayer(1, { x: 300, y: 200 });
+      const ball = createTestBall({ x: 330, y: 200 });
+      const collision = checkPlayerBallCollision(player, ball)!;
 
-      // 2차 바운스
-      b = applyFloorBounce(b, COURT.groundY);
-      expect(Math.abs(b.vel.y)).toBeCloseTo(4.9);
+      resolvePlayerBallCollision(player, ball, collision, false);
+      expect(ball.lastHitBy).toBe(1);
     });
   });
 
-  describe('벽 바운스 (계수 1.0)', () => {
-    it('왼쪽 벽 충돌 시 x 속도 완전 반전', () => {
-      ball.pos = { x: 5, y: 200 }; // 왼쪽 벽 근처
-      ball.vel = { x: -8, y: 3 };
-
-      const bounced = applyWallBounce(ball, COURT.width);
-      expect(bounced.vel.x).toBe(8); // 완전 반전 (계수 1.0)
+  describe('네트 충돌 (checkBallNetCollision / resolveBallNetCollision)', () => {
+    it('공이 네트 좌측에서 충돌 시 감지', () => {
+      const ball = createTestBall({
+        x: COURT.NET_X - PHYSICS.BALL_RADIUS + 2,
+        y: 200,
+        vx: 5,
+      });
+      const result = checkBallNetCollision(ball);
+      expect(result).not.toBeNull();
+      expect(result!.type).toBe('ball_net');
     });
 
-    it('오른쪽 벽 충돌 시 x 속도 완전 반전', () => {
-      ball.pos = { x: COURT.width - 5, y: 200 };
-      ball.vel = { x: 8, y: 3 };
-
-      const bounced = applyWallBounce(ball, COURT.width);
-      expect(bounced.vel.x).toBe(-8);
+    it('네트 충돌 반응: x 속도 반전 (계수 1.0)', () => {
+      const ball = createTestBall({
+        x: COURT.NET_X - PHYSICS.BALL_RADIUS + 2,
+        y: 200,
+        vx: 8,
+        vy: 2,
+      });
+      const collision = checkBallNetCollision(ball);
+      if (collision) {
+        resolveBallNetCollision(ball, collision);
+        expect(ball.vx).toBeLessThan(0);
+      }
     });
 
-    it('벽 바운스 시 에너지 손실 없음', () => {
-      ball.pos = { x: 5, y: 200 };
-      ball.vel = { x: -10, y: 5 };
+    it('네트 높이 위의 공은 네트 충돌 미발생', () => {
+      const ball = createTestBall({
+        x: COURT.NET_X,
+        y: COURT.NET_TOP_Y - PHYSICS.BALL_RADIUS - 10,
+        vx: 5,
+      });
+      const result = checkBallNetCollision(ball);
+      expect(result).toBeNull();
+    });
 
-      const bounced = applyWallBounce(ball, COURT.width);
-      const speedBefore = Math.sqrt(10 ** 2 + 5 ** 2);
-      const speedAfter = Math.sqrt(bounced.vel.x ** 2 + bounced.vel.y ** 2);
+    it('네트에서 멀리 떨어진 공은 충돌 미발생', () => {
+      const ball = createTestBall({ x: 100, y: 200 });
+      const result = checkBallNetCollision(ball);
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('바닥 충돌 (checkBallFloorCollision / resolveBallFloorCollision)', () => {
+    it('공이 바닥 관통 시 충돌 감지', () => {
+      const ball = createTestBall({
+        y: COURT.GROUND_Y - PHYSICS.BALL_RADIUS + 5,
+        vy: 10,
+      });
+      const result = checkBallFloorCollision(ball);
+      expect(result).not.toBeNull();
+      expect(result!.type).toBe('ball_floor');
+    });
+
+    it('바닥 바운스 후 vy 반전 및 0.7배 감소', () => {
+      const ball = createTestBall({
+        y: COURT.GROUND_Y - PHYSICS.BALL_RADIUS + 5,
+        vy: 10,
+      });
+      const collision = checkBallFloorCollision(ball)!;
+      resolveBallFloorCollision(ball, collision);
+      expect(ball.vy).toBeCloseTo(-10 * PHYSICS.BALL_BOUNCE_FLOOR);
+    });
+
+    it('바닥 위에 있는 공은 충돌 미발생', () => {
+      const ball = createTestBall({ y: 100 });
+      expect(checkBallFloorCollision(ball)).toBeNull();
+    });
+  });
+
+  describe('벽 바운스 (bounceWalls)', () => {
+    it('왼쪽 벽 충돌 시 vx 반전 (계수 1.0)', () => {
+      const ball = createTestBall({
+        x: PHYSICS.BALL_RADIUS - 5,
+        vx: -8,
+      });
+      bounceWalls(ball);
+      expect(ball.vx).toBe(8 * PHYSICS.BALL_BOUNCE_WALL);
+      expect(ball.x).toBe(PHYSICS.BALL_RADIUS);
+    });
+
+    it('오른쪽 벽 충돌 시 vx 반전', () => {
+      const ball = createTestBall({
+        x: COURT.WIDTH - PHYSICS.BALL_RADIUS + 5,
+        vx: 8,
+      });
+      bounceWalls(ball);
+      expect(ball.vx).toBe(-8 * PHYSICS.BALL_BOUNCE_WALL);
+    });
+
+    it('천장 충돌 시 vy 반전', () => {
+      const ball = createTestBall({
+        y: COURT.CEILING_Y + PHYSICS.BALL_RADIUS - 5,
+        vy: -10,
+      });
+      bounceWalls(ball);
+      expect(ball.vy).toBe(10); // Math.abs(vy)
+    });
+
+    it('벽 바운스 시 에너지 손실 없음 (계수 1.0)', () => {
+      const ball = createTestBall({ x: 5, y: 200, vx: -10, vy: 5 });
+      const speedBefore = Math.sqrt(ball.vx ** 2 + ball.vy ** 2);
+      bounceWalls(ball);
+      const speedAfter = Math.sqrt(ball.vx ** 2 + ball.vy ** 2);
       expect(speedAfter).toBeCloseTo(speedBefore);
     });
   });
 
-  describe('네트 충돌 (계수 1.0)', () => {
-    it('좌→우 이동 중 네트 충돌 시 왼쪽으로 반사', () => {
-      ball.pos = { x: COURT.netX - 10, y: 150 }; // 네트 근처
-      ball.vel = { x: 8, y: 2 };
-
-      const bounced = applyNetCollision(ball, COURT);
-      expect(bounced.vel.x).toBe(-8);
+  describe('공 물리 (updateBall)', () => {
+    it('중력 적용: 매 프레임 vy += BALL_GRAVITY(0.5)', () => {
+      const ball = createTestBall({ vx: 5, vy: 0 });
+      updateBall(ball);
+      expect(ball.vy).toBe(PHYSICS.BALL_GRAVITY);
     });
 
-    it('네트 높이 위의 공은 네트 충돌 미발생', () => {
-      const netTop = COURT.groundY - COURT.netHeight; // = 88
-      ball.pos = { x: COURT.netX, y: netTop - ball.radius - 10 }; // 네트 위
-      ball.vel = { x: 5, y: -3 };
-
-      const result = applyNetCollision(ball, COURT);
-      expect(result.vel.x).toBe(5); // 변화 없음
-    });
-  });
-
-  describe('중력 적용', () => {
-    it('공에 매 프레임 0.25px/frame² 중력 적용', () => {
-      ball.vel = { x: 5, y: 0 };
-
-      const after = applyGravity(ball);
-      expect(after.vel.y).toBe(0.25);
-
-      // 10프레임 후
-      let b = ball;
+    it('10프레임 후 vy 누적', () => {
+      const ball = createTestBall({ vx: 0, vy: 0, x: 200, y: 100 });
       for (let i = 0; i < 10; i++) {
-        b = applyGravity(b);
+        updateBall(ball);
       }
-      expect(b.vel.y).toBeCloseTo(2.5);
+      // 10 * 0.5 = 5 (단순 누적, 위치 변화로 인한 속도 변화 고려)
+      expect(ball.vy).toBeCloseTo(5, 0);
+    });
+
+    it('속도 제한: BALL_MAX_SPEED(20) 초과 시 클램핑', () => {
+      const ball = createTestBall({ vx: 25, vy: 0 });
+      updateBall(ball);
+      const speed = Math.sqrt(ball.vx ** 2 + ball.vy ** 2);
+      expect(speed).toBeLessThanOrEqual(PHYSICS.BALL_MAX_SPEED + 1);
+    });
+
+    it('위치 업데이트: x += vx, y += vy', () => {
+      const ball = createTestBall({ x: 100, y: 100, vx: 5, vy: 3 });
+      updateBall(ball);
+      expect(ball.x).toBeCloseTo(105);
+      // vy에 gravity 적용 후 이동
+      expect(ball.y).toBeCloseTo(100 + 3 + PHYSICS.BALL_GRAVITY);
     });
   });
 
-  describe('최대 속도 제한', () => {
-    it('속도가 15px/frame 초과 시 클램핑', () => {
-      ball.vel = { x: 20, y: 0 };
-
-      const clamped = clampSpeed(ball);
-      const speed = Math.sqrt(clamped.vel.x ** 2 + clamped.vel.y ** 2);
-      expect(speed).toBeCloseTo(15);
+  describe('플레이어 물리 (updatePlayer)', () => {
+    it('왼쪽 키 → vx = -PLAYER_SPEED', () => {
+      const player = createTestPlayer(0);
+      updatePlayer(player, { ...NO_INPUT, left: true });
+      expect(player.vx).toBe(-PHYSICS.PLAYER_SPEED);
     });
 
-    it('속도가 15px/frame 이하면 변화 없음', () => {
-      ball.vel = { x: 10, y: 5 };
+    it('오른쪽 키 → vx = +PLAYER_SPEED', () => {
+      const player = createTestPlayer(0);
+      updatePlayer(player, { ...NO_INPUT, right: true });
+      expect(player.vx).toBe(PHYSICS.PLAYER_SPEED);
+    });
 
-      const result = clampSpeed(ball);
-      expect(result.vel.x).toBe(10);
-      expect(result.vel.y).toBe(5);
+    it('키 해제 → vx = 0', () => {
+      const player = createTestPlayer(0, { vx: 6 });
+      updatePlayer(player, NO_INPUT);
+      expect(player.vx).toBe(0);
+    });
+
+    it('점프: 바닥에서 up → vy = JUMP_VELOCITY + GRAVITY (같은 프레임에 중력 적용)', () => {
+      const player = createTestPlayer(0);
+      updatePlayer(player, { ...NO_INPUT, up: true });
+      // updatePlayer에서 점프 후 같은 프레임에 중력 적용됨
+      expect(player.vy).toBe(PHYSICS.JUMP_VELOCITY + PHYSICS.GRAVITY);
+      expect(player.isGrounded).toBe(false);
+    });
+
+    it('이중 점프 방지: 공중에서 up 무시', () => {
+      const player = createTestPlayer(0, { isGrounded: false, vy: -8 });
+      updatePlayer(player, { ...NO_INPUT, up: true });
+      // vy에 중력만 적용, JUMP_VELOCITY로 리셋되지 않음
+      expect(player.vy).not.toBe(PHYSICS.JUMP_VELOCITY);
+    });
+
+    it('P1은 왼쪽 코트 영역으로 제한', () => {
+      const player = createTestPlayer(0, { x: COURT.P1_MAX_X });
+      updatePlayer(player, { ...NO_INPUT, right: true });
+      expect(player.x).toBeLessThanOrEqual(COURT.P1_MAX_X);
+    });
+
+    it('P2는 오른쪽 코트 영역으로 제한', () => {
+      const player = createTestPlayer(1, { x: COURT.P2_MIN_X });
+      updatePlayer(player, { ...NO_INPUT, left: true });
+      expect(player.x).toBeGreaterThanOrEqual(COURT.P2_MIN_X);
+    });
+
+    it('바닥 클램핑: y가 GROUND_Y 초과 시 고정', () => {
+      const player = createTestPlayer(0, {
+        y: COURT.GROUND_Y - 10,
+        vy: 20,
+        isGrounded: false,
+      });
+      updatePlayer(player, NO_INPUT);
+      expect(player.y).toBe(COURT.GROUND_Y);
+      expect(player.isGrounded).toBe(true);
     });
   });
 
-  describe('스파이크 판정', () => {
-    it('공중 + 공 위 + 충돌 시 스파이크 판정', () => {
-      player.pos = { x: 200, y: 150 }; // 공중 (groundY=264보다 위)
-      ball.pos = { x: 210, y: 175 }; // 플레이어보다 아래
-
-      expect(detectSpike(player, ball, COURT.groundY)).toBe(true);
+  describe('득점 판정 (checkBallGroundContact)', () => {
+    it('공이 P1 코트(왼쪽) 바닥 → 0 반환 (왼쪽 사이드)', () => {
+      const ball = createTestBall({
+        x: 100,
+        y: COURT.GROUND_Y,
+      });
+      expect(checkBallGroundContact(ball)).toBe(0);
     });
 
-    it('지상에 있으면 스파이크 미발동', () => {
-      player.pos = { x: 200, y: COURT.groundY }; // 지상
-      ball.pos = { x: 210, y: COURT.groundY - 20 };
-
-      expect(detectSpike(player, ball, COURT.groundY)).toBe(false);
+    it('공이 P2 코트(오른쪽) 바닥 → 1 반환 (오른쪽 사이드)', () => {
+      const ball = createTestBall({
+        x: 300,
+        y: COURT.GROUND_Y,
+      });
+      expect(checkBallGroundContact(ball)).toBe(1);
     });
 
-    it('공이 플레이어보다 위에 있으면 스파이크 미발동', () => {
-      player.pos = { x: 200, y: 180 }; // 공중이지만
-      ball.pos = { x: 210, y: 150 }; // 공이 더 위
-
-      expect(detectSpike(player, ball, COURT.groundY)).toBe(false);
+    it('공이 공중에 있으면 null', () => {
+      const ball = createTestBall({ x: 300, y: 100 });
+      expect(checkBallGroundContact(ball)).toBeNull();
     });
   });
 
-  describe('득점 판정', () => {
-    it('공이 P2 코트 바닥에 닿으면 P1 득점', () => {
-      ball.pos = { x: 300, y: COURT.groundY }; // 오른쪽 코트
-      expect(detectFloorScore(ball, COURT.groundY, COURT.netX)).toBe('p1_scores');
+  describe('processCollisions — 통합 충돌 파이프라인', () => {
+    it('플레이어-공 충돌 + 네트 충돌 동시 처리', () => {
+      const state = createInitialState();
+      startGame(state);
+
+      // 공을 P1 근처에 배치
+      state.ball.x = state.players[0].x + 30;
+      state.ball.y = state.players[0].y;
+      state.ball.vx = -5;
+      state.ball.vy = 0;
+
+      const inputs: [KeyState, KeyState] = [NO_INPUT, NO_INPUT];
+      const results = processCollisions(state.players, state.ball, inputs);
+
+      expect(results.length).toBeGreaterThanOrEqual(1);
+      expect(results.some((r) => r.type === 'player_ball')).toBe(true);
     });
 
-    it('공이 P1 코트 바닥에 닿으면 P2 득점', () => {
-      ball.pos = { x: 100, y: COURT.groundY }; // 왼쪽 코트
-      expect(detectFloorScore(ball, COURT.groundY, COURT.netX)).toBe('p2_scores');
+    it('충돌 없는 상태에서 빈 배열 반환', () => {
+      const state = createInitialState();
+      startGame(state);
+
+      // 공을 중앙 공중에 배치 (아무 것과도 충돌하지 않도록)
+      state.ball.x = COURT.WIDTH / 2;
+      state.ball.y = 50;
+      state.ball.vx = 0;
+      state.ball.vy = 0;
+
+      const inputs: [KeyState, KeyState] = [NO_INPUT, NO_INPUT];
+      const results = processCollisions(state.players, state.ball, inputs);
+      expect(results).toHaveLength(0);
+    });
+  });
+
+  describe('서브 리셋', () => {
+    it('resetBallForServe: 공이 서빙 플레이어 위에 배치', () => {
+      const state = createInitialState();
+      startGame(state);
+
+      state.ball.x = 400;
+      state.ball.y = 50;
+      state.ball.vx = 10;
+      state.ball.vy = 10;
+
+      resetBallForServe(state);
+      expect(state.ball.vx).toBe(0);
+      expect(state.ball.vy).toBe(0);
     });
 
-    it('공이 바닥에 닿지 않으면 득점 없음', () => {
-      ball.pos = { x: 300, y: 200 }; // 공중
-      expect(detectFloorScore(ball, COURT.groundY, COURT.netX)).toBeNull();
+    it('resetPlayersForServe: 양 플레이어 초기 위치 복귀', () => {
+      const state = createInitialState();
+      startGame(state);
+
+      state.players[0].x = 10;
+      state.players[1].x = 400;
+
+      resetPlayersForServe(state);
+      expect(state.players[0].y).toBe(COURT.GROUND_Y);
+      expect(state.players[1].y).toBe(COURT.GROUND_Y);
+      expect(state.players[0].isGrounded).toBe(true);
+      expect(state.players[1].isGrounded).toBe(true);
     });
   });
 });

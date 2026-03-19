@@ -1,567 +1,352 @@
 /**
  * WebSocket 연결 안정성 테스트
+ * 실제 sync.ts 모듈 import — Input Buffer, Prediction, Reconciliation, Interpolation, Connection Health
  * PRD 기준: 5초 내 재연결, 최대 3회 시도, 300ms 초과 시 경고
  */
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
+import {
+  createInputBuffer,
+  bufferInput,
+  consumeInput,
+  createPredictionState,
+  recordPrediction,
+  reconcile,
+  createInterpolationState,
+  pushServerState,
+  interpolate,
+  buildStatePacket,
+  createConnectionHealth,
+  updateConnectionHealth,
+} from '@/src/game/sync';
+import type { InputBuffer, PredictionState, InterpolationState, ConnectionHealth } from '@/src/game/sync';
+import type { ClientInput, KeyState, ServerStatePacket } from '@/src/game/types';
+import { createInitialState, startGame } from '@/src/game/engine';
+import { TIMING } from '@/src/game/constants';
 
-// --- 타입 정의 (PRD 기반) ---
+const LEFT_KEY: KeyState = { left: true, right: false, up: false, powerHit: false };
+const RIGHT_KEY: KeyState = { left: false, right: true, up: false, powerHit: false };
+const NO_INPUT: KeyState = { left: false, right: false, up: false, powerHit: false };
 
-interface ClientInput {
-  type: 'input';
-  seq: number;
-  keys: {
-    left: boolean;
-    right: boolean;
-    up: boolean;
-    powerHit: boolean;
+// 테스트용 ServerStatePacket 생성
+function createTestPacket(overrides: Partial<ServerStatePacket> = {}): ServerStatePacket {
+  return {
+    type: 'state',
+    seq: 0,
+    ball: { x: 200, y: 200, vx: 0, vy: 0 },
+    players: [
+      { x: 108, y: 244, vy: 0, state: 'idle' },
+      { x: 324, y: 244, vy: 0, state: 'idle' },
+    ],
+    score: [0, 0],
+    servingPlayer: 0,
+    phase: 'serving',
+    lastInputSeq: [0, 0],
+    ...overrides,
   };
-  timestamp: number;
 }
 
-interface GameState {
-  type: 'state';
-  seq: number;
-  ball: { x: number; y: number; vx: number; vy: number };
-  players: [
-    { x: number; y: number; vy: number; state: string },
-    { x: number; y: number; vy: number; state: string },
-  ];
-  score: [number, number];
-  servingPlayer: 0 | 1;
-  phase: 'serving' | 'playing' | 'scoring' | 'gameOver';
-  lastInputSeq: [number, number];
-}
-
-interface CreateRoom {
-  type: 'createRoom';
-}
-
-interface JoinRoom {
-  type: 'joinRoom';
-  roomId: string;
-}
-
-interface RoomState {
-  type: 'roomState';
-  roomId: string;
-  players: string[];
-  status: 'waiting' | 'ready' | 'playing';
-}
-
-type ServerMessage = GameState | RoomState | { type: 'error'; message: string };
-type ClientMessage = ClientInput | CreateRoom | JoinRoom;
-
-// --- 목 WebSocket 클라이언트 (테스트용) ---
-
-type ConnectionState = 'connecting' | 'connected' | 'disconnected' | 'reconnecting';
-
-class MockGameClient {
-  state: ConnectionState = 'disconnected';
-  reconnectAttempts = 0;
-  maxReconnectAttempts = 3;
-  reconnectTimeoutMs = 5000;
-  inputSeq = 0;
-  pendingInputs: ClientInput[] = [];
-  lastServerState: GameState | null = null;
-  latencyMs = 0;
-  onLatencyWarning: ((ms: number) => void) | null = null;
-  onStateUpdate: ((state: GameState) => void) | null = null;
-  onDisconnect: (() => void) | null = null;
-  onReconnect: (() => void) | null = null;
-
-  private sendBuffer: ClientMessage[] = [];
-  private connected = false;
-
-  connect(): Promise<void> {
-    this.state = 'connecting';
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        this.state = 'connected';
-        this.connected = true;
-        this.reconnectAttempts = 0;
-        resolve();
-      }, 10);
-    });
-  }
-
-  disconnect(): void {
-    this.state = 'disconnected';
-    this.connected = false;
-    this.onDisconnect?.();
-  }
-
-  async reconnect(): Promise<boolean> {
-    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      return false;
-    }
-
-    this.state = 'reconnecting';
-    this.reconnectAttempts++;
-
-    try {
-      await this.connect();
-      this.onReconnect?.();
-      // 재연결 시 미처리 입력 재전송
-      this.flushPendingInputs();
-      return true;
-    } catch {
-      if (this.reconnectAttempts < this.maxReconnectAttempts) {
-        return this.reconnect();
-      }
-      return false;
-    }
-  }
-
-  sendInput(keys: ClientInput['keys']): ClientInput {
-    this.inputSeq++;
-    const input: ClientInput = {
-      type: 'input',
-      seq: this.inputSeq,
-      keys,
-      timestamp: Date.now(),
-    };
-
-    this.pendingInputs.push(input);
-
-    if (this.connected) {
-      this.sendBuffer.push(input);
-    }
-
-    return input;
-  }
-
-  receiveState(state: GameState): void {
-    this.lastServerState = state;
-
-    // lastInputSeq 기반으로 확인된 입력 제거
-    const confirmedSeq = state.lastInputSeq[0]; // P1 기준
-    this.pendingInputs = this.pendingInputs.filter((i) => i.seq > confirmedSeq);
-
-    // 레이턴시 계산
-    if (this.latencyMs > 300) {
-      this.onLatencyWarning?.(this.latencyMs);
-    }
-
-    this.onStateUpdate?.(state);
-  }
-
-  private flushPendingInputs(): void {
-    for (const input of this.pendingInputs) {
-      this.sendBuffer.push(input);
-    }
-  }
-
-  getSendBuffer(): ClientMessage[] {
-    return [...this.sendBuffer];
-  }
-
-  clearSendBuffer(): void {
-    this.sendBuffer = [];
-  }
-
-  simulateLatency(ms: number): void {
-    this.latencyMs = ms;
-  }
-}
-
-// --- 목 게임 서버 (테스트용) ---
-
-interface Room {
-  id: string;
-  players: string[];
-  status: 'waiting' | 'ready' | 'playing';
-  gameState: GameState | null;
-}
-
-class MockGameServer {
-  rooms: Map<string, Room> = new Map();
-  tickRate = 60; // Hz
-  broadcastRate = 30; // Hz
-  private tickCount = 0;
-
-  createRoom(): string {
-    const roomId = `room_${Math.random().toString(36).slice(2, 8)}`;
-    this.rooms.set(roomId, {
-      id: roomId,
-      players: [],
-      status: 'waiting',
-      gameState: null,
-    });
-    return roomId;
-  }
-
-  joinRoom(roomId: string, playerId: string): RoomState | null {
-    const room = this.rooms.get(roomId);
-    if (!room || room.players.length >= 2) return null;
-
-    room.players.push(playerId);
-    if (room.players.length === 2) {
-      room.status = 'ready';
-    }
-
-    return {
-      type: 'roomState',
-      roomId: room.id,
-      players: room.players,
-      status: room.status,
-    };
-  }
-
-  startGame(roomId: string): GameState | null {
-    const room = this.rooms.get(roomId);
-    if (!room || room.status !== 'ready') return null;
-
-    room.status = 'playing';
-    room.gameState = {
-      type: 'state',
-      seq: 0,
-      ball: { x: 108, y: 200, vx: 0, vy: 0 },
-      players: [
-        { x: 108, y: 264, vy: 0, state: 'idle' },
-        { x: 324, y: 264, vy: 0, state: 'idle' },
-      ],
-      score: [0, 0],
-      servingPlayer: 0,
-      phase: 'serving',
-      lastInputSeq: [0, 0],
-    };
-
-    return room.gameState;
-  }
-
-  tick(roomId: string, inputs: Map<number, ClientInput>): GameState | null {
-    const room = this.rooms.get(roomId);
-    if (!room?.gameState) return null;
-
-    this.tickCount++;
-    room.gameState.seq = this.tickCount;
-
-    // 입력 적용
-    for (const [playerIdx, input] of inputs) {
-      room.gameState.lastInputSeq[playerIdx] = input.seq;
-    }
-
-    // 30Hz 브로드캐스트 (매 2틱마다)
-    if (this.tickCount % 2 === 0) {
-      return { ...room.gameState };
-    }
-
-    return null;
-  }
-
-  getRoom(roomId: string): Room | undefined {
-    return this.rooms.get(roomId);
-  }
-}
-
-// ========================
-// 테스트
-// ========================
-
-describe('WebSocket 연결 안정성', () => {
-  let client: MockGameClient;
-  let server: MockGameServer;
+describe('WebSocket 연결 안정성 — Input Buffer (서버 측)', () => {
+  let buffer: InputBuffer;
 
   beforeEach(() => {
-    client = new MockGameClient();
-    server = new MockGameServer();
-    vi.useFakeTimers();
+    buffer = createInputBuffer();
   });
 
-  afterEach(() => {
-    vi.useRealTimers();
+  it('초기 상태: 빈 버퍼, lastProcessedSeq = -1', () => {
+    expect(buffer.inputs).toHaveLength(0);
+    expect(buffer.lastProcessedSeq).toBe(-1);
   });
 
-  describe('기본 연결/해제', () => {
-    it('클라이언트가 서버에 연결 가능', async () => {
-      vi.useRealTimers();
-      await client.connect();
-      expect(client.state).toBe('connected');
-    });
+  it('입력 버퍼링: 순서대로 추가', () => {
+    bufferInput(buffer, { type: 'input', seq: 0, keys: LEFT_KEY, timestamp: 1000 });
+    bufferInput(buffer, { type: 'input', seq: 1, keys: RIGHT_KEY, timestamp: 1016 });
 
-    it('연결 해제 시 상태가 disconnected로 변경', async () => {
-      vi.useRealTimers();
-      await client.connect();
-      client.disconnect();
-      expect(client.state).toBe('disconnected');
-    });
-
-    it('연결 해제 시 onDisconnect 콜백 호출', async () => {
-      vi.useRealTimers();
-      const onDisconnect = vi.fn();
-      client.onDisconnect = onDisconnect;
-
-      await client.connect();
-      client.disconnect();
-
-      expect(onDisconnect).toHaveBeenCalledOnce();
-    });
+    expect(buffer.inputs).toHaveLength(2);
+    expect(buffer.inputs[0].seq).toBe(0);
+    expect(buffer.inputs[1].seq).toBe(1);
   });
 
-  describe('재연결 로직', () => {
-    it('연결 끊김 후 자동 재연결 시도', async () => {
-      vi.useRealTimers();
-      await client.connect();
-      client.disconnect();
+  it('역순 입력도 순서대로 정렬', () => {
+    bufferInput(buffer, { type: 'input', seq: 2, keys: LEFT_KEY, timestamp: 1032 });
+    bufferInput(buffer, { type: 'input', seq: 0, keys: RIGHT_KEY, timestamp: 1000 });
+    bufferInput(buffer, { type: 'input', seq: 1, keys: LEFT_KEY, timestamp: 1016 });
 
-      const result = await client.reconnect();
-      expect(result).toBe(true);
-      expect(client.state).toBe('connected');
-    });
-
-    it('재연결 시 시도 횟수 초기화', async () => {
-      vi.useRealTimers();
-      await client.connect();
-      client.disconnect();
-      client.reconnectAttempts = 2;
-
-      await client.reconnect();
-      expect(client.reconnectAttempts).toBe(0); // connect() 내에서 초기화
-    });
-
-    it('최대 3회 재연결 실패 시 포기', async () => {
-      client.reconnectAttempts = 3;
-      const result = await client.reconnect();
-      expect(result).toBe(false);
-    });
-
-    it('재연결 성공 시 onReconnect 콜백 호출', async () => {
-      vi.useRealTimers();
-      const onReconnect = vi.fn();
-      client.onReconnect = onReconnect;
-
-      await client.connect();
-      client.disconnect();
-      await client.reconnect();
-
-      expect(onReconnect).toHaveBeenCalledOnce();
-    });
-
-    it('재연결 시 미처리 입력 재전송', async () => {
-      vi.useRealTimers();
-      await client.connect();
-
-      // 입력 전송
-      client.sendInput({ left: true, right: false, up: false, powerHit: false });
-      client.sendInput({ left: false, right: true, up: false, powerHit: false });
-
-      client.clearSendBuffer();
-      client.disconnect();
-
-      // 재연결
-      await client.reconnect();
-
-      // 미처리 입력 2개가 재전송되었는지 확인
-      const buffer = client.getSendBuffer();
-      expect(buffer.length).toBe(2);
-    });
+    expect(buffer.inputs[0].seq).toBe(0);
+    expect(buffer.inputs[1].seq).toBe(1);
+    expect(buffer.inputs[2].seq).toBe(2);
   });
 
-  describe('방 생성/참가', () => {
-    it('방 생성 시 고유 roomId 반환', () => {
-      const roomId = server.createRoom();
-      expect(roomId).toMatch(/^room_/);
-    });
+  it('이미 처리된 seq는 무시 (중복 방지)', () => {
+    bufferInput(buffer, { type: 'input', seq: 0, keys: LEFT_KEY, timestamp: 1000 });
+    consumeInput(buffer); // seq 0 소비 → lastProcessedSeq = 0
 
-    it('방 참가 — 1명 참가 시 waiting 상태', () => {
-      const roomId = server.createRoom();
-      const state = server.joinRoom(roomId, 'player1');
-
-      expect(state).not.toBeNull();
-      expect(state!.status).toBe('waiting');
-      expect(state!.players).toHaveLength(1);
-    });
-
-    it('방 참가 — 2명 참가 시 ready 상태', () => {
-      const roomId = server.createRoom();
-      server.joinRoom(roomId, 'player1');
-      const state = server.joinRoom(roomId, 'player2');
-
-      expect(state!.status).toBe('ready');
-      expect(state!.players).toHaveLength(2);
-    });
-
-    it('3번째 플레이어 참가 거부', () => {
-      const roomId = server.createRoom();
-      server.joinRoom(roomId, 'player1');
-      server.joinRoom(roomId, 'player2');
-      const result = server.joinRoom(roomId, 'player3');
-
-      expect(result).toBeNull();
-    });
-
-    it('존재하지 않는 방 참가 시 null 반환', () => {
-      const result = server.joinRoom('nonexistent', 'player1');
-      expect(result).toBeNull();
-    });
+    bufferInput(buffer, { type: 'input', seq: 0, keys: RIGHT_KEY, timestamp: 1016 });
+    expect(buffer.inputs).toHaveLength(0);
   });
 
-  describe('게임 시작 및 상태 동기화', () => {
-    it('2명 ready 시 게임 시작 가능', () => {
-      const roomId = server.createRoom();
-      server.joinRoom(roomId, 'player1');
-      server.joinRoom(roomId, 'player2');
+  it('consumeInput: 하나씩 꺼내면서 lastProcessedSeq 갱신', () => {
+    bufferInput(buffer, { type: 'input', seq: 0, keys: LEFT_KEY, timestamp: 1000 });
+    bufferInput(buffer, { type: 'input', seq: 1, keys: RIGHT_KEY, timestamp: 1016 });
 
-      const state = server.startGame(roomId);
-      expect(state).not.toBeNull();
-      expect(state!.phase).toBe('serving');
-      expect(state!.score).toEqual([0, 0]);
-      expect(state!.servingPlayer).toBe(0);
-    });
+    const keys0 = consumeInput(buffer);
+    expect(keys0).toEqual(LEFT_KEY);
+    expect(buffer.lastProcessedSeq).toBe(0);
 
-    it('1명만 있는 방에서 게임 시작 불가', () => {
-      const roomId = server.createRoom();
-      server.joinRoom(roomId, 'player1');
-
-      const state = server.startGame(roomId);
-      expect(state).toBeNull();
-    });
-
-    it('서버 tick rate 60Hz, 브로드캐스트 30Hz (매 2틱마다 상태 전송)', () => {
-      const roomId = server.createRoom();
-      server.joinRoom(roomId, 'player1');
-      server.joinRoom(roomId, 'player2');
-      server.startGame(roomId);
-
-      const inputs = new Map<number, ClientInput>();
-      const broadcastedStates: GameState[] = [];
-
-      // 60틱 실행
-      for (let i = 0; i < 60; i++) {
-        const state = server.tick(roomId, inputs);
-        if (state) broadcastedStates.push(state);
-      }
-
-      // 30Hz → 60틱에서 30번 브로드캐스트
-      expect(broadcastedStates.length).toBe(30);
-    });
+    const keys1 = consumeInput(buffer);
+    expect(keys1).toEqual(RIGHT_KEY);
+    expect(buffer.lastProcessedSeq).toBe(1);
   });
 
-  describe('입력 전송 및 Reconciliation', () => {
-    it('입력 시퀀스 번호 자동 증가', () => {
-      const keys = { left: true, right: false, up: false, powerHit: false };
-      const input1 = client.sendInput(keys);
-      const input2 = client.sendInput(keys);
+  it('빈 버퍼에서 consumeInput → null', () => {
+    expect(consumeInput(buffer)).toBeNull();
+  });
+});
 
-      expect(input1.seq).toBe(1);
-      expect(input2.seq).toBe(2);
-    });
+describe('WebSocket 연결 안정성 — Client-Side Prediction', () => {
+  let prediction: PredictionState;
 
-    it('서버 상태 수신 시 확인된 입력 제거 (Reconciliation)', async () => {
-      vi.useRealTimers();
-      await client.connect();
-
-      const keys = { left: true, right: false, up: false, powerHit: false };
-      client.sendInput(keys); // seq 1
-      client.sendInput(keys); // seq 2
-      client.sendInput(keys); // seq 3
-
-      expect(client.pendingInputs).toHaveLength(3);
-
-      // 서버가 seq 2까지 처리했다고 알림
-      client.receiveState({
-        type: 'state',
-        seq: 10,
-        ball: { x: 200, y: 200, vx: 0, vy: 0 },
-        players: [
-          { x: 100, y: 264, vy: 0, state: 'idle' },
-          { x: 300, y: 264, vy: 0, state: 'idle' },
-        ],
-        score: [0, 0],
-        servingPlayer: 0,
-        phase: 'playing',
-        lastInputSeq: [2, 0],
-      });
-
-      // seq 3만 남아야 함
-      expect(client.pendingInputs).toHaveLength(1);
-      expect(client.pendingInputs[0].seq).toBe(3);
-    });
+  beforeEach(() => {
+    prediction = createPredictionState();
   });
 
-  describe('레이턴시 경고', () => {
-    it('300ms 초과 시 경고 콜백 호출', async () => {
-      vi.useRealTimers();
-      const onWarning = vi.fn();
-      client.onLatencyWarning = onWarning;
-
-      await client.connect();
-      client.simulateLatency(350);
-
-      client.receiveState({
-        type: 'state',
-        seq: 1,
-        ball: { x: 200, y: 200, vx: 0, vy: 0 },
-        players: [
-          { x: 100, y: 264, vy: 0, state: 'idle' },
-          { x: 300, y: 264, vy: 0, state: 'idle' },
-        ],
-        score: [0, 0],
-        servingPlayer: 0,
-        phase: 'playing',
-        lastInputSeq: [0, 0],
-      });
-
-      expect(onWarning).toHaveBeenCalledWith(350);
-    });
-
-    it('300ms 이하에서는 경고 없음', async () => {
-      vi.useRealTimers();
-      const onWarning = vi.fn();
-      client.onLatencyWarning = onWarning;
-
-      await client.connect();
-      client.simulateLatency(200);
-
-      client.receiveState({
-        type: 'state',
-        seq: 1,
-        ball: { x: 200, y: 200, vx: 0, vy: 0 },
-        players: [
-          { x: 100, y: 264, vy: 0, state: 'idle' },
-          { x: 300, y: 264, vy: 0, state: 'idle' },
-        ],
-        score: [0, 0],
-        servingPlayer: 0,
-        phase: 'playing',
-        lastInputSeq: [0, 0],
-      });
-
-      expect(onWarning).not.toHaveBeenCalled();
-    });
+  it('초기 상태: 빈 pendingInputs, inputSeq = 0', () => {
+    expect(prediction.pendingInputs).toHaveLength(0);
+    expect(prediction.inputSeq).toBe(0);
   });
 
-  describe('프로토콜 메시지 구조', () => {
-    it('ClientInput 메시지 구조 검증', () => {
-      const keys = { left: true, right: false, up: true, powerHit: false };
-      const input = client.sendInput(keys);
+  it('recordPrediction: 입력 시퀀스 자동 증가', () => {
+    const input0 = recordPrediction(prediction, LEFT_KEY, 1000);
+    const input1 = recordPrediction(prediction, RIGHT_KEY, 1016);
 
-      expect(input).toMatchObject({
-        type: 'input',
-        seq: expect.any(Number),
-        keys: { left: true, right: false, up: true, powerHit: false },
-        timestamp: expect.any(Number),
-      });
+    expect(input0.seq).toBe(0);
+    expect(input1.seq).toBe(1);
+    expect(prediction.pendingInputs).toHaveLength(2);
+  });
+
+  it('recordPrediction: ClientInput 형식 반환', () => {
+    const input = recordPrediction(prediction, LEFT_KEY, 1000);
+    expect(input).toMatchObject({
+      type: 'input',
+      seq: 0,
+      keys: LEFT_KEY,
+      timestamp: 1000,
     });
+  });
+});
 
-    it('GameState 메시지 구조 검증', () => {
-      const roomId = server.createRoom();
-      server.joinRoom(roomId, 'p1');
-      server.joinRoom(roomId, 'p2');
-      const state = server.startGame(roomId);
+describe('WebSocket 연결 안정성 — Server Reconciliation', () => {
+  let prediction: PredictionState;
 
-      expect(state).toMatchObject({
-        type: 'state',
-        seq: expect.any(Number),
-        ball: { x: expect.any(Number), y: expect.any(Number), vx: expect.any(Number), vy: expect.any(Number) },
-        players: expect.any(Array),
-        score: [0, 0],
-        servingPlayer: expect.any(Number),
-        phase: expect.any(String),
-        lastInputSeq: expect.any(Array),
-      });
+  beforeEach(() => {
+    prediction = createPredictionState();
+    recordPrediction(prediction, LEFT_KEY, 1000);  // seq 0
+    recordPrediction(prediction, RIGHT_KEY, 1016);  // seq 1
+    recordPrediction(prediction, LEFT_KEY, 1032);   // seq 2
+  });
 
-      expect(state!.players).toHaveLength(2);
-    });
+  it('서버가 seq 1까지 확인 → seq 2만 남음', () => {
+    const packet = createTestPacket({ lastInputSeq: [1, 0] });
+    const remaining = reconcile(prediction, packet, 0);
+
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0].seq).toBe(2);
+  });
+
+  it('서버가 모두 확인 → 빈 배열', () => {
+    const packet = createTestPacket({ lastInputSeq: [2, 0] });
+    const remaining = reconcile(prediction, packet, 0);
+    expect(remaining).toHaveLength(0);
+  });
+
+  it('서버가 아무것도 확인 안 함 → 전부 남음', () => {
+    const packet = createTestPacket({ lastInputSeq: [-1, 0] });
+    const remaining = reconcile(prediction, packet, 0);
+    expect(remaining).toHaveLength(3);
+  });
+
+  it('P2 기준 reconciliation', () => {
+    const prediction2 = createPredictionState();
+    recordPrediction(prediction2, LEFT_KEY, 1000); // seq 0
+    recordPrediction(prediction2, RIGHT_KEY, 1016); // seq 1
+
+    const packet = createTestPacket({ lastInputSeq: [0, 0] });
+    const remaining = reconcile(prediction2, packet, 1);
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0].seq).toBe(1);
+  });
+});
+
+describe('WebSocket 연결 안정성 — State Interpolation', () => {
+  let interp: InterpolationState;
+
+  beforeEach(() => {
+    interp = createInterpolationState();
+  });
+
+  it('초기 상태: previous/current = null', () => {
+    expect(interp.previous).toBeNull();
+    expect(interp.current).toBeNull();
+  });
+
+  it('상태 없을 때 interpolate → null', () => {
+    expect(interpolate(interp, 0.5)).toBeNull();
+  });
+
+  it('1개 상태만 있으면 그대로 반환', () => {
+    pushServerState(interp, createTestPacket({ ball: { x: 100, y: 150, vx: 0, vy: 0 } }));
+    const result = interpolate(interp, 0.5);
+
+    expect(result).not.toBeNull();
+    expect(result!.ball.x).toBe(100);
+    expect(result!.ball.y).toBe(150);
+  });
+
+  it('2개 상태 → t=0.5에서 중간값', () => {
+    pushServerState(interp, createTestPacket({
+      ball: { x: 100, y: 100, vx: 0, vy: 0 },
+      players: [
+        { x: 50, y: 244, vy: 0, state: 'idle' },
+        { x: 300, y: 244, vy: 0, state: 'idle' },
+      ],
+    }));
+    pushServerState(interp, createTestPacket({
+      ball: { x: 200, y: 200, vx: 0, vy: 0 },
+      players: [
+        { x: 100, y: 244, vy: 0, state: 'idle' },
+        { x: 350, y: 244, vy: 0, state: 'idle' },
+      ],
+    }));
+
+    const result = interpolate(interp, 0.5)!;
+    expect(result.ball.x).toBe(150);
+    expect(result.ball.y).toBe(150);
+    expect(result.players[0].x).toBe(75);
+    expect(result.players[1].x).toBe(325);
+  });
+
+  it('t=0 → previous 값', () => {
+    pushServerState(interp, createTestPacket({ ball: { x: 100, y: 100, vx: 0, vy: 0 } }));
+    pushServerState(interp, createTestPacket({ ball: { x: 200, y: 200, vx: 0, vy: 0 } }));
+
+    const result = interpolate(interp, 0)!;
+    expect(result.ball.x).toBe(100);
+  });
+
+  it('t=1 → current 값', () => {
+    pushServerState(interp, createTestPacket({ ball: { x: 100, y: 100, vx: 0, vy: 0 } }));
+    pushServerState(interp, createTestPacket({ ball: { x: 200, y: 200, vx: 0, vy: 0 } }));
+
+    const result = interpolate(interp, 1)!;
+    expect(result.ball.x).toBe(200);
+  });
+
+  it('t가 0~1 범위 밖이면 클램핑', () => {
+    pushServerState(interp, createTestPacket({ ball: { x: 100, y: 100, vx: 0, vy: 0 } }));
+    pushServerState(interp, createTestPacket({ ball: { x: 200, y: 200, vx: 0, vy: 0 } }));
+
+    const under = interpolate(interp, -1)!;
+    expect(under.ball.x).toBe(100);
+
+    const over = interpolate(interp, 2)!;
+    expect(over.ball.x).toBe(200);
+  });
+});
+
+describe('WebSocket 연결 안정성 — buildStatePacket', () => {
+  it('게임 상태를 네트워크 패킷으로 직렬화', () => {
+    const state = createInitialState();
+    startGame(state);
+
+    const buffers: [InputBuffer, InputBuffer] = [createInputBuffer(), createInputBuffer()];
+    const packet = buildStatePacket(state, buffers);
+
+    expect(packet.type).toBe('state');
+    expect(packet.seq).toBe(state.tick);
+    expect(packet.ball).toBeDefined();
+    expect(packet.players).toHaveLength(2);
+    expect(packet.score).toEqual([0, 0]);
+    expect(packet.phase).toBe('serving');
+  });
+
+  it('lastInputSeq가 각 버퍼의 lastProcessedSeq 반영', () => {
+    const state = createInitialState();
+    startGame(state);
+
+    const buffers: [InputBuffer, InputBuffer] = [createInputBuffer(), createInputBuffer()];
+    bufferInput(buffers[0], { type: 'input', seq: 5, keys: LEFT_KEY, timestamp: 1000 });
+    consumeInput(buffers[0]);
+
+    const packet = buildStatePacket(state, buffers);
+    expect(packet.lastInputSeq[0]).toBe(5);
+    expect(packet.lastInputSeq[1]).toBe(-1);
+  });
+});
+
+describe('WebSocket 연결 안정성 — Connection Health', () => {
+  let health: ConnectionHealth;
+
+  beforeEach(() => {
+    health = createConnectionHealth();
+  });
+
+  it('초기 상태: latency=0, isHealthy=true', () => {
+    expect(health.latency).toBe(0);
+    expect(health.isHealthy).toBe(true);
+    expect(health.reconnectAttempts).toBe(0);
+  });
+
+  it('300ms 미만 → isHealthy=true', () => {
+    health.lastPingTime = 1000;
+    updateConnectionHealth(health, 1200);
+
+    expect(health.latency).toBe(200);
+    expect(health.isHealthy).toBe(true);
+  });
+
+  it('300ms 이상 → isHealthy=false (LAG_WARNING_THRESHOLD_MS)', () => {
+    health.lastPingTime = 1000;
+    updateConnectionHealth(health, 1350);
+
+    expect(health.latency).toBe(350);
+    expect(health.isHealthy).toBe(false);
+  });
+
+  it('정확히 300ms → isHealthy=false (>= 아닌 < 비교)', () => {
+    health.lastPingTime = 1000;
+    updateConnectionHealth(health, 1300);
+
+    expect(health.latency).toBe(300);
+    // TIMING.LAG_WARNING_THRESHOLD_MS = 300, isHealthy = latency < 300
+    expect(health.isHealthy).toBe(false);
+  });
+
+  it('LAG_WARNING_THRESHOLD_MS 상수 = 300', () => {
+    expect(TIMING.LAG_WARNING_THRESHOLD_MS).toBe(300);
+  });
+
+  it('RECONNECT_TIMEOUT_MS = 5000', () => {
+    expect(TIMING.RECONNECT_TIMEOUT_MS).toBe(5000);
+  });
+
+  it('RECONNECT_MAX_RETRIES = 3', () => {
+    expect(TIMING.RECONNECT_MAX_RETRIES).toBe(3);
+  });
+});
+
+describe('WebSocket 연결 안정성 — 프로토콜 상수 검증', () => {
+  it('서버 틱 레이트 60Hz', () => {
+    expect(TIMING.SERVER_TICK_RATE).toBe(60);
+  });
+
+  it('상태 브로드캐스트 레이트 30Hz', () => {
+    expect(TIMING.STATE_BROADCAST_RATE).toBe(30);
+  });
+
+  it('프레임 시간 ~16.67ms', () => {
+    expect(TIMING.FRAME_DURATION_MS).toBeCloseTo(16.67, 1);
+  });
+
+  it('서브 딜레이 60프레임 (1초)', () => {
+    expect(TIMING.SERVE_DELAY_FRAMES).toBe(60);
   });
 });

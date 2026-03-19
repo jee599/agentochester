@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "terminal": "npx tsx server/terminal-server.ts",
-    "dev:all": "npm run terminal & npm run dev",
+    "game": "npx tsx src/server/index.ts",
+    "dev:all": "npm run terminal & npm run game & npm run dev",
     "build": "next build",
     "start": "next start",
     "test": "vitest run",
@@ -18,6 +19,7 @@
     "node-pty": "^1.1.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
+    "ws": "^8.19.0",
     "yaml": "^2.8.2"
   },
   "devDependencies": {
@@ -28,7 +30,6 @@
     "@types/ws": "^8.18.1",
     "tailwindcss": "^4",
     "typescript": "^5",
-    "vitest": "^4.1.0",
-    "ws": "^8.19.0"
+    "vitest": "^4.1.0"
   }
 }
