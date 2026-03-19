@@ -118,6 +118,11 @@ export async function POST(request: NextRequest) {
           status: "running",
         });
 
+        // Build context from previous agents' outputs
+        const prevContext = collectedOutputs
+          .map((o) => `[${o.agentName} (${o.role}) — ${o.success ? "completed" : "failed"}]\n${o.output}`)
+          .join("\n\n---\n\n");
+
         const agentPrompt = [
           `You are ${agent!.name} (${agent!.role}).`,
           "",
@@ -127,14 +132,16 @@ export async function POST(request: NextRequest) {
           "- If you need to choose between options, pick the best one and explain why.",
           "- Create actual files and write actual code. Do not just describe what to do.",
           "- Work in the current directory.",
-          "",
-          "[Task]",
-          task.action,
+          "- Build on what previous agents have already created. Read their files before starting.",
           "",
           `[Project Context]`,
           `Original request: ${prompt}`,
           "",
+          "[Task]",
+          task.action,
+          "",
           task.file_scope.length > 0 ? `[File Scope]\n${task.file_scope.join(", ")}` : "",
+          prevContext ? `\n[Previous Agent Outputs]\n${prevContext}` : "",
         ].filter(Boolean).join("\n");
 
         const result = await runClaude(agentPrompt, cwd, (chunk) => {

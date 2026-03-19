@@ -125,6 +125,7 @@ export class GameClient {
       this.setPhase('playing');
       this.startGameLoop();
       this.sounds.play('pipikachu');
+      this.sounds.play('bgm');
     }
   }
 
@@ -191,6 +192,7 @@ export class GameClient {
       this.setPhase('playing');
       this.startGameLoop();
       this.sounds.play('pipikachu');
+      this.sounds.play('bgm');
     }
   }
 
