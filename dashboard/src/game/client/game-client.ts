@@ -79,6 +79,7 @@ export class GameClient {
     this.setPhase('playing');
     this.startGameLoop();
     this.sounds.play('pipikachu');
+    this.sounds.play('bgm');
   }
 
   /**
@@ -276,6 +277,11 @@ export class GameClient {
   private checkSoundEvents(): void {
     const scores = this.state.score.scores;
     const phase = this.state.phase;
+
+    // 충돌 사운드 이벤트 소비
+    for (const evt of this.state.soundEvents) {
+      this.sounds.play(evt);
+    }
 
     // 득점 시 효과음
     if (scores[0] !== this.prevScores[0] || scores[1] !== this.prevScores[1]) {

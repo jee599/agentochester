@@ -2,10 +2,14 @@
 import { COURT, PHYSICS, SERVE_POSITIONS, SERVE_BALL_OFFSET_Y } from './constants';
 import type { Player, Ball, KeyState, GameState } from './types';
 
+// 다이브 후 재사용까지 대기 프레임 (30프레임 = 0.5초)
+const DIVE_COOLDOWN_FRAMES = 30;
+
 /**
  * 플레이어 물리 업데이트 (매 프레임)
  * - 입력 기반 수평 이동
  * - 점프 / 중력
+ * - 다이브 (공중에서 powerHit → 대각선 돌진)
  * - 바닥 클램핑
  * - 코트 영역 제한
  */
@@ -13,6 +17,31 @@ export function updatePlayer(player: Player, keys: KeyState): void {
   const isP1 = player.index === 0;
   const minX = isP1 ? COURT.P1_MIN_X : COURT.P2_MIN_X;
   const maxX = isP1 ? COURT.P1_MAX_X : COURT.P2_MAX_X;
+
+  // 다이브 쿨다운 감소
+  if (player.diveCooldown > 0) {
+    player.diveCooldown--;
+  }
+
+  // 다이브 중에는 입력 무시 (관성으로 이동)
+  if (player.isDiving) {
+    // 중력 적용
+    player.vy += PHYSICS.GRAVITY;
+    player.x += player.vx;
+    player.y += player.vy;
+
+    // 바닥 착지 시 다이브 종료
+    if (player.y >= COURT.GROUND_Y) {
+      player.y = COURT.GROUND_Y;
+      player.vy = 0;
+      player.isGrounded = true;
+      player.isDiving = false;
+      player.diveCooldown = DIVE_COOLDOWN_FRAMES;
+    }
+
+    player.x = Math.max(minX, Math.min(maxX, player.x));
+    return;
+  }
 
   // 수평 이동
   if (keys.left) {
@@ -29,6 +58,15 @@ export function updatePlayer(player: Player, keys: KeyState): void {
     player.isGrounded = false;
   }
 
+  // 다이브 발동: 공중 + powerHit + 쿨다운 끝
+  if (keys.powerHit && !player.isGrounded && player.diveCooldown === 0) {
+    player.isDiving = true;
+    // 이동 방향으로 대각선 돌진
+    const diveDir = keys.left ? -1 : keys.right ? 1 : (isP1 ? 1 : -1);
+    player.vx = diveDir * PHYSICS.PLAYER_SPEED * PHYSICS.POWER_HIT_MULTIPLIER;
+    player.vy = PHYSICS.SPIKE_POWER; // 하향 가속
+  }
+
   // 중력 적용
   if (!player.isGrounded) {
     player.vy += PHYSICS.GRAVITY;
@@ -43,6 +81,7 @@ export function updatePlayer(player: Player, keys: KeyState): void {
     player.y = COURT.GROUND_Y;
     player.vy = 0;
     player.isGrounded = true;
+    player.isDiving = false;
   }
 
   // 좌우 영역 제한

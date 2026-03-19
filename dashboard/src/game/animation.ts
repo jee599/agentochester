@@ -45,7 +45,7 @@ const VALID_TRANSITIONS: Record<PlayerAnimState, PlayerAnimState[]> = {
   walk: ['idle', 'jump_prepare'],
   jump_prepare: ['jump_up'],
   jump_up: ['jump_down', 'spike', 'dive_prepare'],
-  jump_down: ['idle', 'lying_down'],
+  jump_down: ['idle', 'lying_down', 'dive_prepare'],
   dive_prepare: ['diving'],
   diving: ['lying_down'],
   spike: ['jump_down'],
@@ -141,9 +141,18 @@ export function resolvePlayerAnimState(player: Player): void {
 
   // 공중 상태
   if (!player.isGrounded) {
-    if (player.vy < 0 && prev !== 'jump_up') {
+    // 다이브 시퀀스 진입 (dive_prepare/diving은 위에서 이미 처리됨)
+    if (player.isDiving) {
+      transitionPlayerState(player, 'dive_prepare');
+      return;
+    }
+
+    if (player.vy < 0) {
       // 상승 중
-      if (prev === 'jump_prepare') {
+      if (prev === 'idle' || prev === 'walk') {
+        // 점프 시작 — jump_prepare 거쳐서 jump_up으로
+        transitionPlayerState(player, 'jump_prepare');
+      } else if (prev === 'jump_prepare') {
         transitionPlayerState(player, 'jump_up');
       }
     } else if (player.vy >= 0 && prev === 'jump_up') {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import type { GameMode } from '@/src/game/client/game-client';
 
@@ -58,16 +58,17 @@ export default function GamePage() {
     navigator.clipboard.writeText(url);
   };
 
-  // URL 파라미터로 방 참가
-  if (typeof window !== 'undefined' && view === 'menu') {
+  // URL 파라미터로 방 참가 (useEffect로 처리해야 hydration 문제 없음)
+  useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const urlRoom = params.get('room');
-    if (urlRoom) {
+    if (urlRoom && view === 'menu') {
       setGameMode('online');
       setRoomId(urlRoom);
       setView('playing');
     }
-  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="min-h-[80vh] flex flex-col items-center justify-center">

@@ -74,6 +74,9 @@ export interface ScoreState {
   winner: 0 | 1 | null;
 }
 
+// --- Sound Events ---
+export type SoundEvent = 'ballbounce' | 'powerhit' | 'pika';
+
 // --- Game State ---
 export interface GameState {
   phase: GamePhase;
@@ -82,6 +85,7 @@ export interface GameState {
   score: ScoreState;
   tick: number;
   phaseTimer: number; // 현재 phase에서 경과한 프레임 수
+  soundEvents: SoundEvent[]; // 이번 틱에서 발생한 사운드 이벤트
 }
 
 // --- Network ---

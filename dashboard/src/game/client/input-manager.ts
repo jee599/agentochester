@@ -65,10 +65,9 @@ export class InputManager {
     if (p1Key) {
       e.preventDefault();
       this.keyState[p1Key] = true;
-      return;
     }
 
-    // P2 키 바인딩 (로컬 2P)
+    // P2 키 바인딩 (로컬 2P) — D키가 P1/P2 양쪽에서 쓰이므로 early return 금지
     const p2Key = KEY_BINDINGS_P2[e.code];
     if (p2Key) {
       e.preventDefault();
@@ -83,7 +82,6 @@ export class InputManager {
     if (p1Key) {
       e.preventDefault();
       this.keyState[p1Key] = false;
-      return;
     }
 
     const p2Key = KEY_BINDINGS_P2[e.code];

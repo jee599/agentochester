@@ -61,23 +61,29 @@
 
 #### 코트 구성
 - 캔버스 크기: 432×304px (원작 비율)
-- 네트: 중앙, 높이 약 176px (바닥에서)
-- 각 플레이어는 자기 코트 반쪽에서만 이동 가능
+- 네트: 중앙 X=216, 상단 Y=160 (바닥 Y=244에서 84px 높이)
+- 바닥 Y: 244px
+- P1 이동 범위: X 32~212 (네트 왼쪽)
+- P2 이동 범위: X 220~400 (네트 오른쪽)
+- 배경 레이어: 하늘(타일), 산, 구름(애니메이션), 파도, 바닥
 
 #### 캐릭터 물리
 | 속성 | 값 |
 |------|-----|
 | 이동 속도 | 6px/frame |
 | 점프 속도 | -16px/frame (초기) |
-| 중력 | 0.5px/frame² |
+| 중력 | 1.0px/frame² |
 | 충돌 반경 | 32px |
+| 크기 | 64×64px |
+| 스파이크 파워 | 8px/frame |
+| 파워히트 배율 | 1.5x |
 
 #### 공(배구공) 물리
 | 속성 | 값 |
 |------|-----|
-| 중력 | 0.25px/frame² |
+| 중력 | 0.5px/frame² |
 | 충돌 반경 | 20px |
-| 최대 속도 | 15px/frame |
+| 최대 속도 | 20px/frame |
 | 바운스 계수 | 0.7 (바닥), 1.0 (네트/벽) |
 
 #### 서브 (Serve)
@@ -107,15 +113,27 @@
 - **승리 조건:** 먼저 15점 달성 (디폴트)
 - 서브권: 득점한 플레이어에게 이동
 
+#### 게임 페이즈
+
+| 페이즈 | 설명 | 다음 페이즈 |
+|--------|------|-------------|
+| `waiting` | 매칭 대기 | `serving` |
+| `serving` | 서브 준비 (60프레임 = 1초 대기) | `playing` |
+| `playing` | 랠리 중 | `scoring` |
+| `scoring` | 득점 연출 (90프레임 = 1.5초) | `serving` / `gameOver` |
+| `gameOver` | 15점 선취 시 종료 | `waiting` (재대전) |
+
 #### 게임 루프 (60fps)
 ```
 매 프레임:
-  1. 입력 수신 (키보드: ←→↑, 파워업키)
-  2. 플레이어 위치 업데이트 (이동, 점프, 중력)
-  3. 공 위치 업데이트 (중력, 속도)
-  4. 충돌 판정 (플레이어↔공, 공↔네트, 공↔벽, 공↔바닥)
-  5. 득점 판정
-  6. 렌더링
+  1. 입력 수신 (키보드: ←→↑, powerHit키)
+  2. 플레이어 위치 업데이트 (이동, 점프, 중력, 다이브)
+  3. 공 위치 업데이트 (중력, 속도, 최대속도 클램핑)
+  4. 충돌 판정 (player_ball, ball_net, ball_floor, ball_wall, ball_ceiling)
+  5. 득점 판정 + 서브권 이동
+  6. 애니메이션 상태 머신 업데이트
+  7. phaseTimer 업데이트
+  8. 렌더링 (배경 레이어 → 네트 → 그림자 → 공 → 피카츄 → UI)
 ```
 
 ---
@@ -165,26 +183,24 @@ interface ClientInput {
 
 **Server → Client (State Packet)**
 ```typescript
-interface GameState {
+interface ServerStatePacket {
   type: 'state';
   seq: number;          // 서버 틱 번호
-  ball: {
-    x: number;
-    y: number;
-    vx: number;
-    vy: number;
-  };
+  ball: { x: number; y: number; vx: number; vy: number };
   players: [
-    { x: number; y: number; vy: number; state: PlayerState },
-    { x: number; y: number; vy: number; state: PlayerState }
+    { x: number; y: number; vy: number; state: PlayerAnimState },
+    { x: number; y: number; vy: number; state: PlayerAnimState }
   ];
   score: [number, number];
   servingPlayer: 0 | 1;
-  phase: 'serving' | 'playing' | 'scoring' | 'gameOver';
+  phase: GamePhase;
   lastInputSeq: [number, number]; // 각 플레이어의 마지막 처리된 입력 seq
 }
 
-type PlayerState = 'idle' | 'moving' | 'jumping' | 'hitting';
+type PlayerAnimState = 'idle' | 'walk' | 'jump_prepare' | 'jump_up'
+  | 'jump_down' | 'dive_prepare' | 'spike' | 'diving' | 'lying_down';
+
+type GamePhase = 'waiting' | 'serving' | 'playing' | 'scoring' | 'gameOver';
 ```
 
 **매칭/로비 메시지**
@@ -222,51 +238,88 @@ interface RoomState {
 
 ### 5.3 스프라이트/사운드 리소스 목록
 
-#### 스프라이트 시트
+> **상태:** 모든 리소스 수급 완료. `public/assets/` 디렉토리에 배치됨.
 
-| 리소스 | 파일명 | 크기 | 프레임 수 | 설명 |
-|--------|--------|------|-----------|------|
-| 피카츄 P1 | `pikachu-p1.png` | 128×256 | 16 | 대기/이동/점프/히트/승리/패배 |
-| 피카츄 P2 | `pikachu-p2.png` | 128×256 | 16 | P1과 동일 (좌우 반전 또는 색상 변경) |
-| 배구공 | `ball.png` | 64×64 | 4 | 회전 애니메이션 (4프레임) |
-| 네트 | `net.png` | 16×176 | 1 | 정적 이미지 |
-| 코트 배경 | `court-bg.png` | 432×304 | 1 | 배경 (하늘 + 바닥) |
-| 그라운드 | `ground.png` | 432×40 | 1 | 바닥 타일 |
-| UI 요소 | `ui-sprites.png` | 256×128 | N/A | 점수판, 버튼, 아이콘 |
+#### 스프라이트 에셋 (수급 완료)
 
-#### 스프라이트 애니메이션 프레임 정의
+| 리소스 | 파일명 | 크기 | 설명 |
+|--------|--------|------|------|
+| 메인 스프라이트시트 | `images/sprite_sheet.png` | 104.7KB | 모든 캐릭터/공/배경/UI 스프라이트 통합 |
+| 스프라이트 메타데이터 | `images/sprite_sheet.json` | 16KB | TexturePacker JSON 포맷, 프레임 좌표/크기 정의 |
+| 애니메이션 정의 | `animations.json` | — | 상태별 프레임 시퀀스, 전환 규칙, 물리 상수 |
+| 아이콘 | `images/IDI_PIKAICON-0.png` | 240B | 브라우저 탭 아이콘 |
+
+#### 스프라이트시트 구성 (sprite_sheet.json 기반)
 
 ```
-피카츄 애니메이션 (각 상태별 프레임):
-├── idle:     프레임 0~1 (2프레임, 500ms 루프)
-├── moveL:    프레임 2~3 (2프레임, 200ms 루프)
-├── moveR:    프레임 4~5 (2프레임, 200ms 루프)
-├── jump:     프레임 6~7 (상승/하강)
-├── hit:      프레임 8~10 (3프레임, 단발)
-├── spike:    프레임 11~13 (3프레임, 단발)
-├── win:      프레임 14 (정적)
-└── lose:     프레임 15 (정적)
+스프라이트시트 내 카테고리:
+├── pikachu/          # 캐릭터 프레임 (64×64px 단위)
+│   ├── pikachu_0_*   # idle(1) + walk(5프레임)
+│   ├── pikachu_1_*   # jump_prepare(1) + jump_up(5프레임)
+│   ├── pikachu_2_*   # jump_down(5프레임)
+│   ├── pikachu_3_*   # dive_prepare(2프레임)
+│   ├── pikachu_4_*   # spike(1프레임)
+│   ├── pikachu_5_*   # diving(5프레임)
+│   └── pikachu_6_*   # lying_down(5프레임)
+├── ball/             # 공 프레임 (40×40px 단위)
+│   ├── ball_0~4      # rotate(5프레임, 루프)
+│   ├── ball_hyper     # 파워 스파이크 비주얼
+│   ├── ball_punch     # 펀치 후 비주얼
+│   └── ball_trail     # 속도 잔상 이펙트
+├── objects/          # 배경/코트 오브젝트
+│   ├── sky_blue       # 하늘 타일 (16×16, repeat)
+│   ├── mountain       # 산맥 배경 (432×64)
+│   ├── cloud          # 구름 (48×24, 애니메이션)
+│   ├── wave           # 파도 (16×32, repeat-x)
+│   ├── ground_*       # 바닥 타일 (red/yellow, 16×16)
+│   ├── net_pillar*    # 네트 기둥 (8×8, 높이 56px)
+│   └── shadow         # 그림자 (32×8)
+├── number/           # 점수 숫자 (32×32px, 0~9)
+├── messages/         # UI 메시지
+│   ├── common/       # ready, game_end, sachisoft
+│   ├── ja/           # 일본어 (game_start, fight, title, ...)
+│   └── ko/           # 한국어 (game_start, fight, title, ...)
+└── sitting_pikachu   # 타이틀 화면 앉은 피카츄 (104×104)
 ```
 
-#### 사운드 효과
+#### 애니메이션 상태 머신 (구현 완료)
 
-| 리소스 | 파일명 | 포맷 | 길이 | 설명 |
-|--------|--------|------|------|------|
-| 공 타격 | `hit.mp3` | MP3 | ~0.2s | 피카츄가 공을 칠 때 |
-| 스파이크 | `spike.mp3` | MP3 | ~0.3s | 스파이크 히트 |
-| 바닥 바운스 | `bounce.mp3` | MP3 | ~0.2s | 공이 바닥에 닿을 때 |
-| 득점 | `score.mp3` | MP3 | ~0.5s | 점수 획득 |
-| 게임 승리 | `win.mp3` | MP3 | ~1.5s | 경기 승리 |
-| 게임 패배 | `lose.mp3` | MP3 | ~1.5s | 경기 패배 |
-| 서브 시작 | `serve.mp3` | MP3 | ~0.3s | 서브 시작 시 |
-| BGM | `bgm.mp3` | MP3 | ~60s | 루프 가능한 배경 음악 |
-| 매치 시작 | `match-start.mp3` | MP3 | ~1.0s | 매치 시작 카운트다운 |
-| 버튼 클릭 | `click.mp3` | MP3 | ~0.1s | UI 버튼 클릭 |
+```
+피카츄 상태 전환 그래프:
+idle ──► walk ──► idle
+  │               │
+  └──► jump_prepare ◄──┘
+           │
+           ▼
+       jump_up ──► spike ──► jump_down
+           │                    │
+           └──► dive_prepare    ▼
+                    │        idle / lying_down
+                    ▼
+                 diving ──► lying_down ──► idle
 
-#### 리소스 제작 방침
-- 스프라이트: 원작 스타일의 픽셀 아트 (32×32 기본 단위)
-- 사운드: 8bit/chiptune 스타일, 무료 라이선스 또는 자체 제작
-- 총 예상 에셋 크기: ~2MB 이하 (초기 로딩 최적화)
+공 애니메이션 상태:
+├── rotate: 비행 중 회전 (5프레임 루프)
+├── hyper:  파워 스파이크 비주얼
+├── punch:  펀치 후 이펙트
+└── trail:  고속 이동 잔상
+```
+
+#### 사운드 에셋 (수급 완료)
+
+| 리소스 | 파일명 | 포맷 | 용도 |
+|--------|--------|------|------|
+| 공 바운스 | `ballbounce` | WAV + M4A | 공이 바닥/벽/네트에 닿을 때 |
+| 파워히트 | `powerhit` | WAV + M4A | 스파이크/강타 시 |
+| 피 | `pi` | WAV + M4A | 캐릭터 음성 (짧은 울음) |
+| 피카 | `pika` | WAV + M4A | 캐릭터 음성 (일반 히트) |
+| 피카츄 | `pikachu` | WAV + M4A | 캐릭터 음성 (스파이크) |
+| 피피카츄 | `pipikachu` | WAV + M4A | 캐릭터 음성 (승리) |
+| 츄 | `chu` | WAV + M4A | 캐릭터 음성 (패배) |
+| BGM | `bgm.mp3` | MP3 | 배경 음악 (1.9MB, 루프) |
+
+**포맷 전략:** WAV(원본 품질) + M4A(Safari 호환)으로 이중 제공. BGM만 MP3.
+**총 에셋 크기:** ~2.2MB (sprite_sheet 104KB + sounds ~2.1MB)
 
 ---
 
@@ -372,10 +425,12 @@ interface RoomState {
 ### Dependencies
 | 의존성 | 상태 | 비고 |
 |--------|------|------|
-| WebSocket 서버 인프라 | 필요 | Vercel은 WebSocket 미지원 → 별도 서버 필요 (Railway, Fly.io 등) |
-| 스프라이트 에셋 | 필요 | 픽셀 아트 자체 제작 또는 오픈소스 활용 |
-| 사운드 에셋 | 필요 | freesound.org 등에서 8bit SFX 수급 |
-| Next.js 기존 프로젝트 통합 | 가능 | `/game` 라우트로 추가 |
+| WebSocket 서버 인프라 | ⚠️ 배포 필요 | Vercel은 WebSocket 미지원 → 별도 서버 필요 (Railway, Fly.io 등) |
+| 스프라이트 에셋 | ✅ 완료 | `sprite_sheet.png` + `sprite_sheet.json` (원작 리소스 기반) |
+| 사운드 에셋 | ✅ 완료 | WAV+M4A 이중 포맷 7종 + BGM (원작 사운드) |
+| 애니메이션 정의 | ✅ 완료 | `animations.json` — 상태 머신, 프레임 시퀀스, 전환 규칙 |
+| Next.js 기존 프로젝트 통합 | ✅ 완료 | `/game` 라우트, `app/game/page.tsx` |
+| ws 라이브러리 | ✅ 설치됨 | `ws@8.19.0` in package.json |
 
 ### Risks & Mitigations
 | 리스크 | 영향 | 완화 방안 |
@@ -438,16 +493,46 @@ MVP Scope
     └── WebSocket 서버 (Fly.io 또는 Railway)
 ```
 
-### 개발 페이즈 (예상)
+### 개발 페이즈
 
-| 페이즈 | 내용 | 산출물 |
-|--------|------|--------|
-| Phase 1 | 로컬 게임 엔진 | Canvas 렌더링 + 물리 시뮬레이션 + 로컬 2P |
-| Phase 2 | WebSocket 서버 | 방 생성/참가, 상태 동기화, Authoritative Server |
-| Phase 3 | 네트워크 통합 | Client-Side Prediction, 보간, 재연결 |
-| Phase 4 | UI/UX + 에셋 | 로비 화면, 결과 화면, 스프라이트/사운드 적용 |
-| Phase 5 | QA + 배포 | 버그 수정, 성능 최적화, 프로덕션 배포 |
+| 페이즈 | 내용 | 산출물 | 상태 |
+|--------|------|--------|------|
+| Phase 1 | 로컬 게임 엔진 | Canvas 렌더링 + 물리(`physics.ts`) + 충돌(`collision.ts`) + 스코어링(`scoring.ts`) | ✅ 완료 |
+| Phase 2 | WebSocket 서버 | 방 생성/참가, 상태 동기화, Authoritative Server | ✅ 구현됨 (`sync.ts`, `network-client.ts`) |
+| Phase 3 | 네트워크 통합 | Client-Side Prediction, 보간, 재연결 | ✅ 구현됨 |
+| Phase 4 | UI/UX + 에셋 | 로비 화면, 결과 화면, 스프라이트/사운드 적용 | ✅ 에셋 수급 완료, 렌더러/사운드매니저 구현 |
+| Phase 5 | QA + 배포 | 테스트(충돌/네트워크/성능/E2E), 프로덕션 배포 | 🔲 진행 중 |
+
+### 구현 현황
+
+```
+구현 완료 파일:
+├── src/game/
+│   ├── engine.ts           # 게임 시뮬레이션 엔진 (6.2KB)
+│   ├── physics.ts          # 물리 계산 (3.6KB)
+│   ├── collision.ts        # 충돌 판정 (5.7KB)
+│   ├── animation.ts        # 애니메이션 상태 머신 (5.2KB)
+│   ├── scoring.ts          # 득점 로직 (1.4KB)
+│   ├── sync.ts             # 네트워크 동기화/재조정 (6.1KB)
+│   ├── constants.ts        # 게임 상수 (1.6KB)
+│   ├── types.ts            # TypeScript 타입 정의 (2.6KB)
+│   └── client/
+│       ├── GameCanvas.tsx   # React Canvas 컴포넌트 (6.7KB)
+│       ├── game-client.ts   # 클라이언트 오케스트레이션 (8.0KB)
+│       ├── renderer.ts      # Canvas 렌더링 (6.2KB)
+│       ├── input-manager.ts # 키보드 입력 처리 (2.4KB)
+│       ├── network-client.ts# WebSocket 클라이언트 (4.8KB)
+│       ├── sound-manager.ts # 오디오 재생 (2.7KB)
+│       └── sprite-loader.ts # 스프라이트시트 로딩 (3.0KB)
+├── app/game/page.tsx        # 게임 페이지 라우트
+├── tests/
+│   ├── physics/collision.test.ts      # 충돌 판정 테스트
+│   ├── network/websocket.test.ts      # 네트워크 동기화 테스트
+│   ├── performance/input-latency.test.ts # 입력 레이턴시 테스트
+│   └── e2e/two-player.test.ts         # 2인 플레이 E2E 테스트
+└── public/assets/           # 에셋 (스프라이트시트 + 사운드 15개)
+```
 
 ---
 
-*Last updated: 2026-03-19*
+*Last updated: 2026-03-19 (v2 — 구현 현황 반영, 에셋 목록 실제 파일 기준 갱신)*

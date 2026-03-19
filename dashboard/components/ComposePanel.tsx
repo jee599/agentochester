@@ -136,6 +136,8 @@ export default function ComposePanel() {
   const [liveOutputs, setLiveOutputs] = useState<Record<string, string>>({});
   const [taskStatuses, setTaskStatuses] = useState<Record<string, string>>({});
   const [taskTimers, setTaskTimers] = useState<Record<string, number>>({});
+  const [taskNames, setTaskNames] = useState<Record<string, { role: string; agentName: string }>>({});
+  const [showConfetti, setShowConfetti] = useState(false);
 
   const handleExecute = async () => {
     if (!prompt.trim()) return;
@@ -181,6 +183,9 @@ export default function ComposePanel() {
             if (eventType === "task_start") {
               setTaskStatuses((prev) => ({ ...prev, [data.taskId]: data.status }));
               setTaskTimers((prev) => ({ ...prev, [data.taskId]: Date.now() }));
+              if (data.agentName) {
+                setTaskNames((prev) => ({ ...prev, [data.taskId]: { role: data.role, agentName: data.agentName } }));
+              }
             } else if (eventType === "task_output") {
               setLiveOutputs((prev) => ({
                 ...prev,
@@ -199,6 +204,8 @@ export default function ComposePanel() {
               });
             } else if (eventType === "done") {
               totalDurationMs = data.totalDurationMs;
+              const successCount = results.filter(r => r.status === "success").length;
+              if (successCount > 0) setShowConfetti(true);
             }
           }
         }
@@ -353,17 +360,22 @@ export default function ComposePanel() {
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
             <span className="text-slate-400">{t("exec.executing")}</span>
           </div>
-          {Object.entries(taskStatuses).map(([taskId, status]) => (
-            <div key={taskId} className="py-1.5">
+          {Object.entries(taskStatuses).map(([taskId, status]) => {
+            const info = taskNames[taskId];
+            return (
+            <div key={taskId} className={`py-1.5 transition-all duration-500 ${status === "success" ? "animate-[fadeGreen_0.6s_ease-out]" : ""}`}>
               <div className="flex items-center gap-2 text-xs">
-                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                  status === "running" ? "bg-emerald-400 animate-pulse" :
-                  status === "success" ? "bg-emerald-400" :
-                  "bg-rose-400"
-                }`} />
-                <span className="font-mono text-slate-200">{taskId}</span>
-                <span className={`text-[10px] font-mono ${
-                  status === "running" ? "text-slate-400" :
+                {status === "running" ? (
+                  <span className="w-4 h-4 shrink-0 rounded-full border-2 border-violet-400 border-t-transparent animate-spin" />
+                ) : status === "success" ? (
+                  <span className="w-4 h-4 shrink-0 rounded-full bg-emerald-500 flex items-center justify-center text-[8px] text-white animate-[popIn_0.3s_ease-out]">✓</span>
+                ) : (
+                  <span className="w-4 h-4 shrink-0 rounded-full bg-rose-500 flex items-center justify-center text-[8px] text-white">✗</span>
+                )}
+                <span className="font-mono text-white">{info?.agentName || taskId}</span>
+                <span className="text-[10px] font-mono text-slate-500">{info?.role || ""}</span>
+                <span className={`text-[10px] font-semibold ${
+                  status === "running" ? "text-violet-400" :
                   status === "success" ? "text-emerald-400" :
                   "text-rose-400"
                 }`}>{status}</span>
@@ -379,7 +391,8 @@ export default function ComposePanel() {
                 </pre>
               )}
             </div>
-          ))}
+          );
+          })}
         </div>
       )}
 
@@ -415,12 +428,12 @@ export default function ComposePanel() {
                   onClick={() => toggleResult(r.taskId)}
                   className="w-full flex items-center gap-2 text-xs text-left cursor-pointer"
                 >
-                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                    r.status === "success" ? "bg-emerald-400" :
-                    r.status === "error" ? "bg-rose-400" :
-                    "bg-amber-400"
-                  }`} />
-                  <span className="font-mono text-slate-200">{r.agentName}</span>
+                  {r.status === "success" ? (
+                    <span className="w-4 h-4 shrink-0 rounded-full bg-emerald-500 flex items-center justify-center text-[8px] text-white">✓</span>
+                  ) : (
+                    <span className="w-4 h-4 shrink-0 rounded-full bg-rose-500 flex items-center justify-center text-[8px] text-white">✗</span>
+                  )}
+                  <span className="font-mono text-white">{r.agentName || r.taskId}</span>
                   <span className="font-mono text-slate-500">{r.role}</span>
                   <span className="ml-auto font-mono text-slate-500 text-[10px]">
                     {(r.durationMs / 1000).toFixed(1)}s
@@ -474,6 +487,26 @@ export default function ComposePanel() {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Confetti on completion */}
+      {showConfetti && (
+        <div className="fixed inset-0 pointer-events-none z-50" onAnimationEnd={() => setShowConfetti(false)}>
+          {Array.from({ length: 40 }).map((_, i) => (
+            <div
+              key={i}
+              className="absolute animate-[confettiFall_2s_ease-out_forwards]"
+              style={{
+                left: `${Math.random() * 100}%`,
+                top: "-10px",
+                animationDelay: `${Math.random() * 0.5}s`,
+                fontSize: `${10 + Math.random() * 14}px`,
+              }}
+            >
+              {["🎉", "✨", "🚀", "⭐", "💜", "🎊"][Math.floor(Math.random() * 6)]}
+            </div>
+          ))}
         </div>
       )}
     </div>

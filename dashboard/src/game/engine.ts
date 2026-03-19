@@ -4,7 +4,7 @@ import { updatePlayer, updateBall, bounceWalls, resetBallForServe, resetPlayersF
 import { processCollisions, resolveBallFloorCollision, checkBallFloorCollision } from './collision';
 import { processScoring, checkWinCondition, resetScore } from './scoring';
 import { resolvePlayerAnimState, updatePlayerAnimation, updateBallAnimation } from './animation';
-import type { GameState, Player, Ball, KeyState, GamePhase } from './types';
+import type { GameState, Player, Ball, KeyState, GamePhase, SoundEvent, CollisionResult } from './types';
 
 /**
  * 초기 게임 상태 생성
@@ -17,6 +17,7 @@ export function createInitialState(): GameState {
     score: resetScore(),
     tick: 0,
     phaseTimer: 0,
+    soundEvents: [],
   };
 }
 
@@ -76,6 +77,7 @@ export function gameTick(
 ): void {
   state.tick++;
   state.phaseTimer++;
+  state.soundEvents = [];
 
   switch (state.phase) {
     case 'waiting':
@@ -124,6 +126,7 @@ function tickServing(state: GameState, inputs: [KeyState, KeyState]): void {
 
   // 충돌 처리
   const collisions = processCollisions(state.players, state.ball, inputs);
+  emitCollisionSounds(state, collisions);
 
   // 공이 바닥에 닿으면 → 득점 처리
   const groundSide = checkBallGroundContact(state.ball);
@@ -161,7 +164,8 @@ function tickPlaying(state: GameState, inputs: [KeyState, KeyState]): void {
   bounceWalls(state.ball);
 
   // 3. 충돌 처리
-  processCollisions(state.players, state.ball, inputs);
+  const collisions = processCollisions(state.players, state.ball, inputs);
+  emitCollisionSounds(state, collisions);
 
   // 4. 득점 판정
   const groundSide = checkBallGroundContact(state.ball);
@@ -218,6 +222,20 @@ function tickScoring(state: GameState): void {
   state.phaseTimer = 0;
   resetPlayersForServe(state);
   resetBallForServe(state);
+}
+
+/**
+ * 충돌 결과에서 사운드 이벤트 생성
+ */
+function emitCollisionSounds(state: GameState, collisions: CollisionResult[]): void {
+  for (const col of collisions) {
+    if (col.type === 'player_ball') {
+      // 스파이크/파워히트 여부는 ball.isPowerHit로 판단
+      state.soundEvents.push(state.ball.isPowerHit ? 'powerhit' : 'pika');
+    } else if (col.type === 'ball_net' || col.type === 'ball_floor') {
+      state.soundEvents.push('ballbounce');
+    }
+  }
 }
 
 /**
