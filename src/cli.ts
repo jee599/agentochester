@@ -502,11 +502,21 @@ function installHook(cwd: string): void {
     return false;
   });
   if (!hasOurHook) {
+    const hookScript = `echo '<AGENTCROW_DISPATCH_RULES>
+CRITICAL INSTRUCTION — AgentCrow is active.
+When the user gives a complex request (2+ tasks like "build X with Y and Z"), you MUST:
+1. Look in .claude/agents/ for matching agent .md files
+2. Show dispatch plan: 🐦 AgentCrow — dispatching N agents
+3. Use the Agent tool to dispatch each agent with their .md file as the prompt
+4. Do NOT do the work yourself. Delegate to agents.
+Simple single-task requests: handle directly, no agents.
+</AGENTCROW_DISPATCH_RULES>'`;
+
     settings.hooks.SessionStart.push({
       matcher: "",
       hooks: [{
         type: 'command',
-        command: "echo '🐦 AgentCrow active'",
+        command: hookScript,
       }],
     });
   }
