@@ -54,6 +54,12 @@
 
 ---
 
+<p align="center">
+  <img src="assets/demo.gif" alt="AgentCrow demo — auto-dispatching agents" width="720" />
+</p>
+
+---
+
 ```
   You:    "Build a SaaS dashboard with Stripe billing, auth, and docs"
 
