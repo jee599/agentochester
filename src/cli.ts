@@ -44,6 +44,7 @@ function printUsage(): void {
 const GLOBAL_DIR = path.join(os.homedir(), '.agentcrow', 'agents');
 const GLOBAL_BUILTIN = path.join(GLOBAL_DIR, 'builtin');
 const GLOBAL_EXTERNAL = path.join(GLOBAL_DIR, 'external', 'agency-agents');
+const GLOBAL_MD = path.join(GLOBAL_DIR, 'md');
 
 async function ensureGlobalAgents(): Promise<{ builtinDir: string; externalDir: string; agentCount: number }> {
   // 1. Copy builtin agents (from npm package → global)
@@ -84,10 +85,55 @@ async function ensureGlobalAgents(): Promise<{ builtinDir: string; externalDir: 
     console.log('  External agents ready');
   }
 
-  // 3. Count
+  // 3. Generate .md files globally (skip existing individually)
+  fs.mkdirSync(GLOBAL_MD, { recursive: true });
   const catalog = new AgentCatalog(GLOBAL_BUILTIN, GLOBAL_EXTERNAL);
   await catalog.build();
-  return { builtinDir: GLOBAL_BUILTIN, externalDir: GLOBAL_EXTERNAL, agentCount: catalog.listAll().length };
+  const allAgents = catalog.listAll();
+  let mdGenerated = 0;
+  let mdSkipped = 0;
+  for (const entry of allAgents) {
+    const safeRole = entry.role.replace(/[^a-z0-9_]/g, '_');
+    const mdPath = path.join(GLOBAL_MD, `${safeRole}.md`);
+    if (fs.existsSync(mdPath)) {
+      mdSkipped++;
+      continue;
+    }
+
+    try {
+      if (entry.source.type === 'builtin') {
+        const yamlPath = (entry.source as { filePath: string }).filePath;
+        if (fs.existsSync(yamlPath)) {
+          const yamlMod = await import('yaml');
+          const parsed = yamlMod.parse(fs.readFileSync(yamlPath, 'utf-8'));
+          const md = [
+            `# ${parsed.name}`,
+            `> ${parsed.description || ''}`,
+            '',
+            `**Role:** ${parsed.role}`,
+            '',
+            parsed.identity?.personality ? `## Identity\n${parsed.identity.personality.trim()}` : '',
+            parsed.critical_rules?.must?.length ? `## MUST\n${parsed.critical_rules.must.map((r: string) => `- ${r}`).join('\n')}` : '',
+            parsed.critical_rules?.must_not?.length ? `## MUST NOT\n${parsed.critical_rules.must_not.map((r: string) => `- ${r}`).join('\n')}` : '',
+          ].filter(Boolean).join('\n\n');
+          fs.writeFileSync(mdPath, md, 'utf-8');
+          mdGenerated++;
+        }
+      } else if (entry.source.type === 'external') {
+        const srcPath = (entry.source as { filePath: string }).filePath;
+        if (fs.existsSync(srcPath)) {
+          fs.copyFileSync(srcPath, mdPath);
+          mdGenerated++;
+        }
+      }
+    } catch {
+      // skip failed agents
+    }
+  }
+  if (mdGenerated > 0) console.log(`  Generated ${mdGenerated} agent .md files → ~/.agentcrow/agents/md/`);
+  if (mdSkipped > 0 && mdGenerated === 0) console.log(`  Agent .md files ready (${mdSkipped} skipped)`);
+
+  return { builtinDir: GLOBAL_BUILTIN, externalDir: GLOBAL_EXTERNAL, agentCount: allAgents.length };
 }
 
 // ─── agentcrow init ───
@@ -101,59 +147,40 @@ async function cmdInit(lang: string = 'en', maxAgents: number = 5): Promise<void
   const catalog = new AgentCatalog(builtinDir, externalDir);
   await catalog.build();
 
-  // 3. Copy agent .md files to .claude/agents/
+  // 3. Symlink .claude/agents/ → ~/.agentcrow/agents/md/ (no per-project copy)
   const claudeDir = path.join(cwd, '.claude');
   const agentsDir = path.join(claudeDir, 'agents');
-  fs.mkdirSync(agentsDir, { recursive: true });
+  fs.mkdirSync(claudeDir, { recursive: true });
 
-  // Generate agent .md files from builtin YAML + external .md
   const allAgents = catalog.listAll();
-  let agentFiles = 0;
-  for (const entry of allAgents) {
-    const safeRole = entry.role.replace(/[^a-z0-9_]/g, '_');
-    const agentMdPath = path.join(agentsDir, `${safeRole}.md`);
-    if (fs.existsSync(agentMdPath)) continue;
 
-    try {
-      if (entry.source.type === 'builtin') {
-        // Parse YAML → generate agent .md
-        const yamlPath = (entry.source as { filePath: string }).filePath;
-        if (fs.existsSync(yamlPath)) {
-          const yaml = await import('yaml');
-          const parsed = yaml.parse(fs.readFileSync(yamlPath, 'utf-8'));
-          const md = [
-            `# ${parsed.name}`,
-            `> ${parsed.description || ''}`,
-            '',
-            `**Role:** ${parsed.role}`,
-            '',
-            parsed.identity?.personality ? `## Identity\n${parsed.identity.personality.trim()}` : '',
-            parsed.critical_rules?.must?.length ? `## MUST\n${parsed.critical_rules.must.map((r: string) => `- ${r}`).join('\n')}` : '',
-            parsed.critical_rules?.must_not?.length ? `## MUST NOT\n${parsed.critical_rules.must_not.map((r: string) => `- ${r}`).join('\n')}` : '',
-          ].filter(Boolean).join('\n\n');
-          fs.writeFileSync(agentMdPath, md, 'utf-8');
-          agentFiles++;
-        }
-      } else if (entry.source.type === 'external') {
-        // Copy external .md
-        const srcPath = (entry.source as { filePath: string }).filePath;
-        if (fs.existsSync(srcPath)) {
-          fs.copyFileSync(srcPath, agentMdPath);
-          agentFiles++;
-        }
-      }
-    } catch (err: unknown) {
-      const code = (err as NodeJS.ErrnoException).code;
-      if (code === 'EACCES') {
-        console.error(`  ✗ Permission denied writing ${safeRole}.md. Try running with sudo or check .claude/ permissions.`);
-      } else if (code === 'ENOSPC') {
-        console.error(`  ✗ Disk full. Free some space and try again.`);
-      } else {
-        console.error(`  ✗ Failed to write ${safeRole}.md: ${(err as Error).message}`);
-      }
+  // Remove existing agents dir/symlink if present
+  try {
+    const stat = fs.lstatSync(agentsDir);
+    if (stat.isSymbolicLink()) {
+      fs.unlinkSync(agentsDir);
+    } else if (stat.isDirectory()) {
+      // Migrate: old per-project copy exists, remove it
+      fs.rmSync(agentsDir, { recursive: true, force: true });
+      console.log('  Migrated: removed per-project agent copies');
+    }
+  } catch {
+    // agentsDir doesn't exist yet, fine
+  }
+
+  try {
+    fs.symlinkSync(GLOBAL_MD, agentsDir, 'dir');
+    console.log(`  Linked .claude/agents/ → ~/.agentcrow/agents/md/ (${allAgents.length} agents)`);
+  } catch (err: unknown) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === 'EEXIST') {
+      // Already linked
+      console.log(`  .claude/agents/ already linked (${allAgents.length} agents)`);
+    } else {
+      console.error(`  ✗ Failed to create symlink: ${(err as Error).message}`);
+      process.exit(1);
     }
   }
-  console.log(`  ${agentFiles > 0 ? `Installed ${agentFiles}` : `${allAgents.length}`} agent definitions → .claude/agents/`);
 
   // 4. Generate slim CLAUDE.md (rules only, no agent list)
   const claudeMdPath = path.join(claudeDir, 'CLAUDE.md');
@@ -230,7 +257,7 @@ ${AGENTCROW_END}`;
   console.log('  Installed SessionStart hook');
 
   console.log();
-  console.log(`\x1b[32m✓ AgentCrow initialized.\x1b[0m ${allAgents.length} agents in .claude/agents/, max ${maxAgents} per dispatch.`);
+  console.log(`\x1b[32m✓ AgentCrow initialized.\x1b[0m ${allAgents.length} agents (symlinked from ~/.agentcrow/), max ${maxAgents} per dispatch.`);
   console.log('\x1b[90m  agentcrow off / on / status\x1b[0m');
 }
 
@@ -387,7 +414,6 @@ function cmdOff(): void {
   const claudeMd = path.join(cwd, '.claude', 'CLAUDE.md');
   const backupMd = path.join(cwd, '.claude', 'CLAUDE.md.agentcrow-backup');
   const agentsDir = path.join(cwd, '.claude', 'agents');
-  const agentsBackup = path.join(cwd, '.claude', 'agents.agentcrow-backup');
 
   if (!fs.existsSync(claudeMd)) {
     console.log('\x1b[33m⚠ AgentCrow is already off (no .claude/CLAUDE.md found)\x1b[0m');
@@ -403,16 +429,18 @@ function cmdOff(): void {
 
   fs.renameSync(claudeMd, backupMd);
 
-  // Backup .claude/agents/ directory
-  if (fs.existsSync(agentsDir)) {
-    if (fs.existsSync(agentsBackup)) {
-      fs.rmSync(agentsBackup, { recursive: true, force: true });
+  // Remove symlink (global agents stay intact)
+  try {
+    const stat = fs.lstatSync(agentsDir);
+    if (stat.isSymbolicLink()) {
+      fs.unlinkSync(agentsDir);
     }
-    fs.renameSync(agentsDir, agentsBackup);
+  } catch {
+    // agents dir doesn't exist, fine
   }
 
   removeHook(cwd);
-  console.log('\x1b[35m🐦 AgentCrow disabled.\x1b[0m CLAUDE.md and agents backed up. Run `agentcrow on` to re-enable.');
+  console.log('\x1b[35m🐦 AgentCrow disabled.\x1b[0m CLAUDE.md backed up. Run `agentcrow on` to re-enable.');
 }
 
 // ─── agentcrow on ───
@@ -421,7 +449,6 @@ function cmdOn(): void {
   const claudeMd = path.join(cwd, '.claude', 'CLAUDE.md');
   const backupMd = path.join(cwd, '.claude', 'CLAUDE.md.agentcrow-backup');
   const agentsDir = path.join(cwd, '.claude', 'agents');
-  const agentsBackup = path.join(cwd, '.claude', 'agents.agentcrow-backup');
 
   if (fs.existsSync(claudeMd)) {
     const content = fs.readFileSync(claudeMd, 'utf-8');
@@ -435,9 +462,13 @@ function cmdOn(): void {
   if (fs.existsSync(backupMd)) {
     fs.renameSync(backupMd, claudeMd);
 
-    // Restore .claude/agents/ from backup
-    if (fs.existsSync(agentsBackup) && !fs.existsSync(agentsDir)) {
-      fs.renameSync(agentsBackup, agentsDir);
+    // Recreate symlink to global agents
+    if (!fs.existsSync(agentsDir) && fs.existsSync(GLOBAL_MD)) {
+      try {
+        fs.symlinkSync(GLOBAL_MD, agentsDir, 'dir');
+      } catch {
+        // symlink failed, non-critical
+      }
     }
 
     installHook(cwd);
