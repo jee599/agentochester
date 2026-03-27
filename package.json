@@ -1,6 +1,6 @@
 {
   "name": "agentcrow",
-  "version": "3.3.2",
+  "version": "3.5.0",
   "description": "Auto Agent Router — 9 builtin + external agents, auto-decompose prompts, dispatch subagents in Claude Code",
   "bin": {
     "agentcrow": "./dist/cli.js"
@@ -9,7 +9,7 @@
   "scripts": {
     "build": "tsc",
     "test": "vitest run",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build && npm test"
   },
   "keywords": [
     "claude",

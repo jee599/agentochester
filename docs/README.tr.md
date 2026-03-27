@@ -6,13 +6,13 @@
 
 <h3 align="center">
   Tek bir prompt. AgentCrow parcalara ayirir ve uzman ajanlari paralel olarak calistirir. 9 yerlesik + harici ajanlar.<br>
-  <code>npx agentcrow init</code> → <code>claude</code> → otomatik dispatch.
+  <code>agentcrow init</code> → <code>claude</code> → otomatik dispatch.
 </h3>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/agentcrow"><img src="https://img.shields.io/npm/v/agentcrow?style=flat-square&color=violet" alt="npm" /></a>
   <img src="https://img.shields.io/badge/agents-9_builtin-brightgreen?style=flat-square" alt="Agents" />
-  <img src="https://img.shields.io/badge/tests-78_passing-brightgreen?style=flat-square" alt="Tests" />
+  <img src="https://img.shields.io/badge/tests-118_passing-brightgreen?style=flat-square" alt="Tests" />
   <a href="LICENSE"><img src="https://img.shields.io/github/license/jee599/agentcrow?style=flat-square" alt="License" /></a>
 </p>
 
@@ -56,7 +56,8 @@
 <h3 align="center">⬇️ Tek satir. Hepsi bu.</h3>
 
 ```bash
-npx agentcrow init
+npm i -g agentcrow
+agentcrow init
 ```
 
 <p align="center">
@@ -116,7 +117,8 @@ AgentCrow otomatik dispatch eder:
 ## ⚡ Kurulum
 
 ```bash
-npx agentcrow init
+npm i -g agentcrow
+agentcrow init
 ```
 
 Bu kadar. Iki sey yapar:
@@ -176,15 +178,16 @@ API anahtari yok. Sunucu yok. Sadece Claude Code + CLAUDE.md.
 ## 🔧 Komutlar
 
 ```bash
-npx agentcrow init              # Ajanlar + CLAUDE.md kur (Ingilizce varsayilan)
-npx agentcrow init --lang ko    # Korece sablon
-npx agentcrow init --max 5      # Maksimum esajanli ajan sayisi
-npx agentcrow status            # Aktif mi kontrol et
-npx agentcrow off               # Gecici olarak devre disi birak
-npx agentcrow on                # Tekrar etkinlestir
-npx agentcrow agents            # Tum ajanlari listele
-npx agentcrow agents search ai  # Anahtar kelimeyle ara
-npx agentcrow compose "prompt"  # Ayristirma onizlemesi (dry run)
+agentcrow init                # Ajanlar + CLAUDE.md kur (mevcut proje)
+agentcrow init --global       # Bir kez kur, tum projelerde calisir
+agentcrow init --lang ko      # Korece sablon
+agentcrow init --max 5        # Maksimum esajanli ajan sayisi
+agentcrow status              # Durum kontrol (proje + global)
+agentcrow off [--global]      # Gecici olarak devre disi birak
+agentcrow on [--global]       # Tekrar etkinlestir
+agentcrow agents              # Tum ajanlari listele
+agentcrow agents search ai    # Anahtar kelimeyle ara
+agentcrow compose "prompt"    # Ayristirma onizlemesi (dry run)
 ```
 
 ## 💡 Prompt Ornekleri
@@ -217,7 +220,7 @@ Basit promptlar normal calisir. AgentCrow sadece coklu gorev isteklerinde devrey
 
 ```bash
 git clone --recursive https://github.com/jee599/agentcrow.git
-cd agentcrow && npm install && npm test  # 78 tests
+cd agentcrow && npm install && npm test  # 118 tests
 ```
 
 ## 📜 Lisans

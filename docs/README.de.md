@@ -6,13 +6,13 @@
 
 <h3 align="center">
   Ein Prompt. AgentCrow zerlegt ihn und verteilt spezialisierte Agenten parallel. 9 builtin + externe Agenten.<br>
-  <code>npx agentcrow init</code> → <code>claude</code> → automatisches Dispatching.
+  <code>agentcrow init</code> → <code>claude</code> → automatisches Dispatching.
 </h3>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/agentcrow"><img src="https://img.shields.io/npm/v/agentcrow?style=flat-square&color=violet" alt="npm" /></a>
   <img src="https://img.shields.io/badge/agents-9_builtin-brightgreen?style=flat-square" alt="Agents" />
-  <img src="https://img.shields.io/badge/tests-78_passing-brightgreen?style=flat-square" alt="Tests" />
+  <img src="https://img.shields.io/badge/tests-118_passing-brightgreen?style=flat-square" alt="Tests" />
   <a href="LICENSE"><img src="https://img.shields.io/github/license/jee599/agentcrow?style=flat-square" alt="License" /></a>
 </p>
 
@@ -56,7 +56,8 @@
 <h3 align="center">⬇️ Eine Zeile. Das war's.</h3>
 
 ```bash
-npx agentcrow init
+npm i -g agentcrow
+agentcrow init
 ```
 
 <p align="center">
@@ -116,7 +117,8 @@ AgentCrow dispatcht automatisch:
 ## ⚡ Installation
 
 ```bash
-npx agentcrow init
+npm i -g agentcrow
+agentcrow init
 ```
 
 Das war's. Zwei Dinge passieren:
@@ -176,15 +178,16 @@ Kein API-Key. Kein Server. Nur Claude Code + CLAUDE.md.
 ## 🔧 Befehle
 
 ```bash
-npx agentcrow init              # Agenten + CLAUDE.md einrichten (Englisch Standard)
-npx agentcrow init --lang ko    # Koreanisches Template
-npx agentcrow init --max 5      # Maximum gleichzeitiger Agenten
-npx agentcrow status            # Pruefen ob aktiv
-npx agentcrow off               # Voruebergehend deaktivieren
-npx agentcrow on                # Wieder aktivieren
-npx agentcrow agents            # Alle Agenten auflisten
-npx agentcrow agents search ai  # Nach Stichwort suchen
-npx agentcrow compose "prompt"  # Zerlegungsvorschau (Dry Run)
+agentcrow init                # Agenten + CLAUDE.md einrichten (aktuelles Projekt)
+agentcrow init --global       # Einmal einrichten, funktioniert in allen Projekten
+agentcrow init --lang ko      # Koreanisches Template
+agentcrow init --max 5        # Maximum gleichzeitiger Agenten
+agentcrow status              # Status pruefen (Projekt + Global)
+agentcrow off [--global]      # Voruebergehend deaktivieren
+agentcrow on [--global]       # Wieder aktivieren
+agentcrow agents              # Alle Agenten auflisten
+agentcrow agents search ai    # Nach Stichwort suchen
+agentcrow compose "prompt"    # Zerlegungsvorschau (Dry Run)
 ```
 
 ## 💡 Prompt-Beispiele
@@ -217,7 +220,7 @@ Einfache Prompts laufen normal. AgentCrow greift nur bei Multi-Task-Anfragen ein
 
 ```bash
 git clone --recursive https://github.com/jee599/agentcrow.git
-cd agentcrow && npm install && npm test  # 78 tests
+cd agentcrow && npm install && npm test  # 118 tests
 ```
 
 ## 📜 Lizenz

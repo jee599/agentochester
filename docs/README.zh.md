@@ -6,13 +6,13 @@
 
 <h3 align="center">
   输入一个 prompt，AgentCrow 自动拆分到专业 Agent 并行执行。9 个内置 + 外部 Agent。<br>
-  <code>npx agentcrow init</code> → <code>claude</code> → 自动调度。
+  <code>agentcrow init</code> → <code>claude</code> → 自动调度。
 </h3>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/agentcrow"><img src="https://img.shields.io/npm/v/agentcrow?style=flat-square&color=violet" alt="npm" /></a>
   <img src="https://img.shields.io/badge/agents-9_builtin-brightgreen?style=flat-square" alt="Agents" />
-  <img src="https://img.shields.io/badge/tests-78_passing-brightgreen?style=flat-square" alt="Tests" />
+  <img src="https://img.shields.io/badge/tests-118_passing-brightgreen?style=flat-square" alt="Tests" />
   <a href="LICENSE"><img src="https://img.shields.io/github/license/jee599/agentcrow?style=flat-square" alt="License" /></a>
 </p>
 
@@ -56,7 +56,8 @@
 <h3 align="center">⬇️ 一行命令，搞定。</h3>
 
 ```bash
-npx agentcrow init
+npm i -g agentcrow
+agentcrow init
 ```
 
 <p align="center">
@@ -116,7 +117,8 @@ AgentCrow 自动调度:
 ## ⚡ 安装
 
 ```bash
-npx agentcrow init
+npm i -g agentcrow
+agentcrow init
 ```
 
 就这么简单。它做两件事：
@@ -176,15 +178,16 @@ npx agentcrow init
 ## 🔧 命令
 
 ```bash
-npx agentcrow init              # 设置 Agent + CLAUDE.md（默认英文）
-npx agentcrow init --lang ko    # 韩文模板
-npx agentcrow init --max 5      # 每次调度最大 Agent 数
-npx agentcrow status            # 检查是否激活
-npx agentcrow off               # 临时禁用
-npx agentcrow on                # 重新启用
-npx agentcrow agents            # 列出所有 Agent
-npx agentcrow agents search ai  # 按关键词搜索
-npx agentcrow compose "prompt"  # 预览分解（dry run）
+agentcrow init                # 设置 Agent + CLAUDE.md（当前项目）
+agentcrow init --global       # 一次设置，所有项目生效
+agentcrow init --lang ko      # 韩文模板
+agentcrow init --max 5        # 每次调度最大 Agent 数
+agentcrow status              # 状态检查（项目 + 全局）
+agentcrow off [--global]      # 临时禁用
+agentcrow on [--global]       # 重新启用
+agentcrow agents              # 列出所有 Agent
+agentcrow agents search ai    # 按关键词搜索
+agentcrow compose "prompt"    # 预览分解（dry run）
 ```
 
 ## 💡 Prompt 示例
@@ -217,7 +220,7 @@ npx agentcrow compose "prompt"  # 预览分解（dry run）
 
 ```bash
 git clone --recursive https://github.com/jee599/agentcrow.git
-cd agentcrow && npm install && npm test  # 78 tests
+cd agentcrow && npm install && npm test  # 118 tests
 ```
 
 ## 📜 许可证

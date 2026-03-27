@@ -368,8 +368,9 @@ function findMdFilesRecursive(dirPath: string): string[] {
   function walk(dir: string) {
     const entries = readdirSync(dir, { withFileTypes: true });
     for (const entry of entries) {
+      if (entry.isSymbolicLink()) continue; // skip symlinks for security
       const fullPath = join(dir, entry.name);
-      if (entry.isDirectory()) {
+      if (entry.isDirectory() && !EXCLUDED_DIRS.has(entry.name)) {
         walk(fullPath);
       } else if (entry.name.endsWith('.md') && !EXCLUDED_FILES.has(entry.name)) {
         results.push(fullPath);

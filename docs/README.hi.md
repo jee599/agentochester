@@ -6,13 +6,13 @@
 
 <h3 align="center">
   एक प्रॉम्प्ट दो। AgentCrow उसे तोड़कर स्पेशलिस्ट एजेंट्स को पैरेलल में भेजता है। 9 बिल्ट-इन + एक्सटर्नल एजेंट्स।<br>
-  <code>npx agentcrow init</code> → <code>claude</code> → ऑटो-डिस्पैच।
+  <code>agentcrow init</code> → <code>claude</code> → ऑटो-डिस्पैच।
 </h3>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/agentcrow"><img src="https://img.shields.io/npm/v/agentcrow?style=flat-square&color=violet" alt="npm" /></a>
   <img src="https://img.shields.io/badge/agents-9_builtin-brightgreen?style=flat-square" alt="Agents" />
-  <img src="https://img.shields.io/badge/tests-78_passing-brightgreen?style=flat-square" alt="Tests" />
+  <img src="https://img.shields.io/badge/tests-118_passing-brightgreen?style=flat-square" alt="Tests" />
   <a href="LICENSE"><img src="https://img.shields.io/github/license/jee599/agentcrow?style=flat-square" alt="License" /></a>
 </p>
 
@@ -56,7 +56,8 @@
 <h3 align="center">⬇️ एक लाइन। बस।</h3>
 
 ```bash
-npx agentcrow init
+npm i -g agentcrow
+agentcrow init
 ```
 
 <p align="center">
@@ -116,7 +117,8 @@ AgentCrow ऑटो-डिस्पैच करता है:
 ## ⚡ इंस्टॉल
 
 ```bash
-npx agentcrow init
+npm i -g agentcrow
+agentcrow init
 ```
 
 बस इतना। ये दो काम करता है:
@@ -176,15 +178,16 @@ npx agentcrow init
 ## 🔧 कमांड्स
 
 ```bash
-npx agentcrow init              # एजेंट्स + CLAUDE.md सेटअप (अंग्रेज़ी डिफ़ॉल्ट)
-npx agentcrow init --lang ko    # कोरियन टेम्पलेट
-npx agentcrow init --max 5      # मैक्सिमम एक साथ एजेंट्स
-npx agentcrow status            # एक्टिव है या नहीं चेक करो
-npx agentcrow off               # अस्थायी रूप से बंद करो
-npx agentcrow on                # फिर से चालू करो
-npx agentcrow agents            # सभी एजेंट्स की लिस्ट
-npx agentcrow agents search ai  # कीवर्ड से खोजो
-npx agentcrow compose "prompt"  # डीकंपोज़िशन प्रीव्यू (dry run)
+agentcrow init                # एजेंट्स + CLAUDE.md सेटअप (मौजूदा प्रोजेक्ट)
+agentcrow init --global       # एक बार सेटअप, सभी प्रोजेक्ट्स में काम करे
+agentcrow init --lang ko      # कोरियन टेम्पलेट
+agentcrow init --max 5        # मैक्सिमम एक साथ एजेंट्स
+agentcrow status              # स्टेटस चेक करो (प्रोजेक्ट + ग्लोबल)
+agentcrow off [--global]      # अस्थायी रूप से बंद करो
+agentcrow on [--global]       # फिर से चालू करो
+agentcrow agents              # सभी एजेंट्स की लिस्ट
+agentcrow agents search ai    # कीवर्ड से खोजो
+agentcrow compose "prompt"    # डीकंपोज़िशन प्रीव्यू (dry run)
 ```
 
 ## 💡 प्रॉम्प्ट उदाहरण
@@ -217,7 +220,7 @@ npx agentcrow compose "prompt"  # डीकंपोज़िशन प्री
 
 ```bash
 git clone --recursive https://github.com/jee599/agentcrow.git
-cd agentcrow && npm install && npm test  # 78 tests
+cd agentcrow && npm install && npm test  # 118 tests
 ```
 
 ## 📜 लाइसेंस

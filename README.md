@@ -6,13 +6,13 @@
 
 <h3 align="center">
   Claude Code Agent Teams is powerful. But it doesn't know <i>which</i> agents to use.<br>
-  AgentCrow does. 9 builtin agents + external agents. Auto-dispatch. <code>npx agentcrow init</code>
+  AgentCrow does. 9 builtin agents + external agents. Auto-dispatch. <code>agentcrow init</code>
 </h3>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/agentcrow"><img src="https://img.shields.io/npm/v/agentcrow?style=flat-square&color=violet" alt="npm" /></a>
   <img src="https://img.shields.io/badge/agents-9_builtin-brightgreen?style=flat-square" alt="Agents" />
-  <img src="https://img.shields.io/badge/tests-78_passing-brightgreen?style=flat-square" alt="Tests" />
+  <img src="https://img.shields.io/badge/tests-118_passing-brightgreen?style=flat-square" alt="Tests" />
   <a href="LICENSE"><img src="https://img.shields.io/github/license/jee599/agentcrow?style=flat-square" alt="License" /></a>
 </p>
 
@@ -47,7 +47,7 @@
 | 9 builtin + external agent roles | ❌ you write prompts | ✅ ready to go |
 | Auto-decompose prompts | ❌ you split manually | ✅ one prompt in |
 | Agent identity & rules | ❌ blank subagents | ✅ personality, MUST/MUST NOT |
-| Works without config | ❌ needs `--agents` JSON | ✅ `npx agentcrow init` |
+| Works without config | ❌ needs `--agents` JSON | ✅ `agentcrow init` |
 | Multiple divisions (eng, game, design...) | ❌ | ✅ |
 
 > **Agent Teams gives you the engine. AgentCrow gives it a brain.**
@@ -77,7 +77,7 @@
 <h3 align="center">⬇️ One line. That's it.</h3>
 
 ```bash
-npx agentcrow init
+npm i -g agentcrow && agentcrow init
 ```
 
 <p align="center">
@@ -137,7 +137,8 @@ AgentCrow auto-dispatches:
 ## ⚡ Install
 
 ```bash
-npx agentcrow init
+npm i -g agentcrow
+agentcrow init
 ```
 
 That's it. This does two things:
@@ -197,15 +198,16 @@ No API key. No server. Just Claude Code + CLAUDE.md.
 ## 🔧 Commands
 
 ```bash
-npx agentcrow init              # Set up agents + CLAUDE.md (English default)
-npx agentcrow init --lang ko    # Korean template
-npx agentcrow init --max 5      # Max simultaneous agents per dispatch
-npx agentcrow status            # Check if active
-npx agentcrow off               # Disable temporarily
-npx agentcrow on                # Re-enable
-npx agentcrow agents            # List all agents
-npx agentcrow agents search ai  # Search by keyword
-npx agentcrow compose "prompt"  # Preview decomposition (dry run)
+agentcrow init                # Set up agents (current project)
+agentcrow init --global       # Set up once, works in all projects
+agentcrow init --lang ko      # Korean template
+agentcrow init --max 5        # Max simultaneous agents per dispatch
+agentcrow status              # Check status (project + global)
+agentcrow off [--global]      # Disable temporarily
+agentcrow on [--global]       # Re-enable
+agentcrow agents              # List all agents
+agentcrow agents search ai    # Search by keyword
+agentcrow compose "prompt"    # Preview decomposition (dry run)
 ```
 
 ## 💡 Example Prompts
@@ -238,7 +240,7 @@ Simple prompts run normally. AgentCrow only activates for multi-task requests.
 
 ```bash
 git clone --recursive https://github.com/jee599/agentcrow.git
-cd agentcrow && npm install && npm test  # 78 tests
+cd agentcrow && npm install && npm test  # 118 tests
 ```
 
 ## 📜 License

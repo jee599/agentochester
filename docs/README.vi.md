@@ -6,13 +6,13 @@
 
 <h3 align="center">
   Mot prompt duy nhat. AgentCrow tu dong tach va dispatch cac agent chuyen biet chay song song. 9 built-in + agent ben ngoai.<br>
-  <code>npx agentcrow init</code> → <code>claude</code> → tu dong dispatch.
+  <code>agentcrow init</code> → <code>claude</code> → tu dong dispatch.
 </h3>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/agentcrow"><img src="https://img.shields.io/npm/v/agentcrow?style=flat-square&color=violet" alt="npm" /></a>
   <img src="https://img.shields.io/badge/agents-9_builtin-brightgreen?style=flat-square" alt="Agents" />
-  <img src="https://img.shields.io/badge/tests-78_passing-brightgreen?style=flat-square" alt="Tests" />
+  <img src="https://img.shields.io/badge/tests-118_passing-brightgreen?style=flat-square" alt="Tests" />
   <a href="LICENSE"><img src="https://img.shields.io/github/license/jee599/agentcrow?style=flat-square" alt="License" /></a>
 </p>
 
@@ -56,7 +56,8 @@
 <h3 align="center">⬇️ Mot dong lenh. Xong.</h3>
 
 ```bash
-npx agentcrow init
+npm i -g agentcrow
+agentcrow init
 ```
 
 <p align="center">
@@ -116,7 +117,8 @@ AgentCrow tu dong dispatch:
 ## ⚡ Cai dat
 
 ```bash
-npx agentcrow init
+npm i -g agentcrow
+agentcrow init
 ```
 
 Chi vay thoi. Lenh nay lam hai viec:
@@ -176,15 +178,16 @@ Khong can API key. Khong can server. Chi can Claude Code + CLAUDE.md.
 ## 🔧 Cac lenh
 
 ```bash
-npx agentcrow init              # Thiet lap agent + CLAUDE.md (tieng Anh mac dinh)
-npx agentcrow init --lang ko    # Template tieng Han
-npx agentcrow init --max 5      # So agent dong thoi toi da
-npx agentcrow status            # Kiem tra trang thai
-npx agentcrow off               # Tam tat
-npx agentcrow on                # Bat lai
-npx agentcrow agents            # Liet ke tat ca agent
-npx agentcrow agents search ai  # Tim theo tu khoa
-npx agentcrow compose "prompt"  # Xem truoc phan tach (dry run)
+agentcrow init                # Thiet lap agent + CLAUDE.md (du an hien tai)
+agentcrow init --global       # Thiet lap mot lan, hoat dong o moi du an
+agentcrow init --lang ko      # Template tieng Han
+agentcrow init --max 5        # So agent dong thoi toi da
+agentcrow status              # Kiem tra trang thai (du an + global)
+agentcrow off [--global]      # Tam tat
+agentcrow on [--global]       # Bat lai
+agentcrow agents              # Liet ke tat ca agent
+agentcrow agents search ai    # Tim theo tu khoa
+agentcrow compose "prompt"    # Xem truoc phan tach (dry run)
 ```
 
 ## 💡 Vi du Prompt
@@ -217,7 +220,7 @@ Prompt don gian chay binh thuong. AgentCrow chi kich hoat voi cac yeu cau nhieu 
 
 ```bash
 git clone --recursive https://github.com/jee599/agentcrow.git
-cd agentcrow && npm install && npm test  # 78 tests
+cd agentcrow && npm install && npm test  # 118 tests
 ```
 
 ## 📜 Giay phep

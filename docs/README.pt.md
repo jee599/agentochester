@@ -6,13 +6,13 @@
 
 <h3 align="center">
   Um prompt. AgentCrow decompoe e despacha agentes especializados em paralelo. 9 builtin + agentes externos.<br>
-  <code>npx agentcrow init</code> → <code>claude</code> → despacho automatico.
+  <code>agentcrow init</code> → <code>claude</code> → despacho automatico.
 </h3>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/agentcrow"><img src="https://img.shields.io/npm/v/agentcrow?style=flat-square&color=violet" alt="npm" /></a>
   <img src="https://img.shields.io/badge/agents-9_builtin-brightgreen?style=flat-square" alt="Agents" />
-  <img src="https://img.shields.io/badge/tests-78_passing-brightgreen?style=flat-square" alt="Tests" />
+  <img src="https://img.shields.io/badge/tests-118_passing-brightgreen?style=flat-square" alt="Tests" />
   <a href="LICENSE"><img src="https://img.shields.io/github/license/jee599/agentcrow?style=flat-square" alt="License" /></a>
 </p>
 
@@ -56,7 +56,8 @@
 <h3 align="center">⬇️ Uma linha. So isso.</h3>
 
 ```bash
-npx agentcrow init
+npm i -g agentcrow
+agentcrow init
 ```
 
 <p align="center">
@@ -116,7 +117,8 @@ AgentCrow despacha automaticamente:
 ## ⚡ Instalacao
 
 ```bash
-npx agentcrow init
+npm i -g agentcrow
+agentcrow init
 ```
 
 So isso. Faz duas coisas:
@@ -176,15 +178,16 @@ Sem API key. Sem servidor. Apenas Claude Code + CLAUDE.md.
 ## 🔧 Comandos
 
 ```bash
-npx agentcrow init              # Configurar agentes + CLAUDE.md (ingles por padrao)
-npx agentcrow init --lang ko    # Template em coreano
-npx agentcrow init --max 5      # Maximo de agentes simultaneos
-npx agentcrow status            # Verificar se esta ativo
-npx agentcrow off               # Desativar temporariamente
-npx agentcrow on                # Reativar
-npx agentcrow agents            # Listar todos os agentes
-npx agentcrow agents search ai  # Buscar por palavra-chave
-npx agentcrow compose "prompt"  # Pre-visualizar decomposicao (dry run)
+agentcrow init                # Configurar agentes + CLAUDE.md (projeto atual)
+agentcrow init --global       # Uma vez, funciona em todos os projetos
+agentcrow init --lang ko      # Template em coreano
+agentcrow init --max 5        # Maximo de agentes simultaneos
+agentcrow status              # Verificar status (projeto + global)
+agentcrow off [--global]      # Desativar temporariamente
+agentcrow on [--global]       # Reativar
+agentcrow agents              # Listar todos os agentes
+agentcrow agents search ai    # Buscar por palavra-chave
+agentcrow compose "prompt"    # Pre-visualizar decomposicao (dry run)
 ```
 
 ## 💡 Exemplos de Prompts
@@ -217,7 +220,7 @@ Prompts simples rodam normalmente. AgentCrow so intervem em requisicoes multi-ta
 
 ```bash
 git clone --recursive https://github.com/jee599/agentcrow.git
-cd agentcrow && npm install && npm test  # 78 tests
+cd agentcrow && npm install && npm test  # 118 tests
 ```
 
 ## 📜 Licenca

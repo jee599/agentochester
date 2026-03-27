@@ -6,13 +6,13 @@
 
 <h3 align="center">
   プロンプトを1つ入力するだけ。AgentCrowが専門エージェントに自動分割して実行します。9つのビルトイン + 外部エージェント。<br>
-  <code>npx agentcrow init</code> → <code>claude</code> → 自動ディスパッチ。
+  <code>agentcrow init</code> → <code>claude</code> → 自動ディスパッチ。
 </h3>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/agentcrow"><img src="https://img.shields.io/npm/v/agentcrow?style=flat-square&color=violet" alt="npm" /></a>
   <img src="https://img.shields.io/badge/agents-9_builtin-brightgreen?style=flat-square" alt="Agents" />
-  <img src="https://img.shields.io/badge/tests-78_passing-brightgreen?style=flat-square" alt="Tests" />
+  <img src="https://img.shields.io/badge/tests-118_passing-brightgreen?style=flat-square" alt="Tests" />
   <a href="LICENSE"><img src="https://img.shields.io/github/license/jee599/agentcrow?style=flat-square" alt="License" /></a>
 </p>
 
@@ -55,7 +55,8 @@
 <h3 align="center">⬇️ たった1行。以上。</h3>
 
 ```bash
-npx agentcrow init
+npm i -g agentcrow
+agentcrow init
 ```
 
 <p align="center">
@@ -115,7 +116,8 @@ AgentCrowが自動ディスパッチ:
 ## ⚡ インストール
 
 ```bash
-npx agentcrow init
+npm i -g agentcrow
+agentcrow init
 ```
 
 これだけで完了です。2つのことを行います:
@@ -175,15 +177,16 @@ APIキー不要。サーバー不要。Claude Code + CLAUDE.md、それだけで
 ## 🔧 コマンド
 
 ```bash
-npx agentcrow init              # エージェント + CLAUDE.md セットアップ（英語デフォルト）
-npx agentcrow init --lang ko    # 韓国語テンプレート
-npx agentcrow init --max 5      # ディスパッチあたりの最大エージェント数
-npx agentcrow status            # アクティブか確認
-npx agentcrow off               # 一時的に無効化
-npx agentcrow on                # 再有効化
-npx agentcrow agents            # 全エージェント一覧
-npx agentcrow agents search ai  # キーワード検索
-npx agentcrow compose "prompt"  # 分解プレビュー（dry run）
+agentcrow init                # エージェント + CLAUDE.md セットアップ（現在のプロジェクト）
+agentcrow init --global       # 一度設定、全プロジェクトで動作
+agentcrow init --lang ko      # 韓国語テンプレート
+agentcrow init --max 5        # ディスパッチあたりの最大エージェント数
+agentcrow status              # ステータス確認（プロジェクト + グローバル）
+agentcrow off [--global]      # 一時的に無効化
+agentcrow on [--global]       # 再有効化
+agentcrow agents              # 全エージェント一覧
+agentcrow agents search ai    # キーワード検索
+agentcrow compose "prompt"    # 分解プレビュー（dry run）
 ```
 
 ## 💡 プロンプト例
@@ -216,7 +219,7 @@ npx agentcrow compose "prompt"  # 分解プレビュー（dry run）
 
 ```bash
 git clone --recursive https://github.com/jee599/agentcrow.git
-cd agentcrow && npm install && npm test  # 78 tests
+cd agentcrow && npm install && npm test  # 118 tests
 ```
 
 ## 📜 ライセンス
