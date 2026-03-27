@@ -4,10 +4,12 @@ import * as path from 'node:path';
 import { execSync } from 'node:child_process';
 import { c, VERSION, GLOBAL_DIR, GLOBAL_BUILTIN, GLOBAL_EXTERNAL, GLOBAL_MD } from '../utils/constants.js';
 
+let _issueCount = 0;
 function check(label: string, ok: boolean, detail?: string): void {
   const icon = ok ? c.green('✓') : c.red('✗');
   const msg = detail ? `${label} ${c.dim(detail)}` : label;
   console.log(`  ${icon} ${msg}`);
+  if (!ok) _issueCount++;
 }
 
 function commandExists(cmd: string): boolean {
@@ -24,29 +26,26 @@ export function cmdDoctor(): void {
   console.log(`  ${c.purple('🐦 AgentCrow Doctor')} ${c.dim(`v${VERSION}`)}`);
   console.log();
 
-  let issues = 0;
+  _issueCount = 0;
 
   // 1. Node.js
   const nodeVersion = process.version;
   const nodeMajor = parseInt(nodeVersion.slice(1), 10);
   const nodeOk = nodeMajor >= 18;
   check('Node.js', nodeOk, nodeOk ? nodeVersion : `${nodeVersion} (requires >= 18)`);
-  if (!nodeOk) issues++;
+  // check() auto-increments _issueCount
 
   // 2. git
   const hasGit = commandExists('git');
   check('git', hasGit, hasGit ? 'installed' : 'not found — needed for external agents');
-  if (!hasGit) issues++;
 
   // 3. claude CLI
   const hasClaude = commandExists('claude');
   check('claude CLI', hasClaude, hasClaude ? 'installed' : 'not found — needed for compose');
-  if (!hasClaude) issues++;
 
   // 4. Global agent storage
   const hasGlobalDir = fs.existsSync(GLOBAL_DIR);
   check('Global storage', hasGlobalDir, hasGlobalDir ? GLOBAL_DIR : 'not found — run agentcrow init --global');
-  if (!hasGlobalDir) issues++;
 
   // 5. Builtin agents
   let builtinCount = 0;
@@ -54,7 +53,6 @@ export function cmdDoctor(): void {
     builtinCount = fs.readdirSync(GLOBAL_BUILTIN).filter((f) => f.endsWith('.yaml')).length;
   }
   check('Builtin agents', builtinCount > 0, `${builtinCount} found`);
-  if (builtinCount === 0) issues++;
 
   // 6. External agents
   const hasExternal = fs.existsSync(GLOBAL_EXTERNAL);
@@ -63,7 +61,6 @@ export function cmdDoctor(): void {
     externalDivisions = fs.readdirSync(GLOBAL_EXTERNAL, { withFileTypes: true }).filter((d) => d.isDirectory()).length;
   }
   check('External agents', hasExternal, hasExternal ? `${externalDivisions} divisions` : 'not downloaded');
-  if (!hasExternal) issues++;
 
   // 7. MD definitions
   let mdCount = 0;
@@ -71,7 +68,6 @@ export function cmdDoctor(): void {
     mdCount = fs.readdirSync(GLOBAL_MD).filter((f) => f.endsWith('.md')).length;
   }
   check('Agent definitions (.md)', mdCount > 0, `${mdCount} files`);
-  if (mdCount === 0) issues++;
 
   // 8. Project CLAUDE.md
   const projectClaudeMd = path.join(process.cwd(), '.claude', 'CLAUDE.md');
@@ -134,10 +130,10 @@ export function cmdDoctor(): void {
 
   // Summary
   console.log();
-  if (issues === 0) {
+  if (_issueCount === 0) {
     console.log(`  ${c.green('✓')} All checks passed!`);
   } else {
-    console.log(`  ${c.yellow('⚠')} ${issues} issue(s) found. Run ${c.cyan('agentcrow init --global')} to fix.`);
+    console.log(`  ${c.yellow('⚠')} ${_issueCount} issue(s) found. Run ${c.cyan('agentcrow init --global')} to fix.`);
   }
   console.log();
 }

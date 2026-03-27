@@ -3,15 +3,8 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod';
 import { AgentCatalog } from '../core/catalog.js';
 import { AgentManager } from '../core/agent-manager.js';
-import { GLOBAL_BUILTIN, GLOBAL_EXTERNAL, BUILTIN_DIR, EXTERNAL_DIR, VERSION } from '../utils/constants.js';
-import * as fs from 'node:fs';
+import { getAgentDirs, VERSION } from '../utils/constants.js';
 import { recordDispatch } from '../utils/history.js';
-
-function getAgentDirs(): { bDir: string; eDir: string } {
-  const bDir = fs.existsSync(GLOBAL_BUILTIN) ? GLOBAL_BUILTIN : BUILTIN_DIR;
-  const eDir = fs.existsSync(GLOBAL_EXTERNAL) ? GLOBAL_EXTERNAL : EXTERNAL_DIR;
-  return { bDir, eDir };
-}
 
 export async function cmdServe(): Promise<void> {
   const { bDir, eDir } = getAgentDirs();

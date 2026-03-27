@@ -1,6 +1,6 @@
 {
   "name": "agentcrow",
-  "version": "4.2.0",
+  "version": "4.2.1",
   "description": "Auto Agent Router — 9 builtin + external agents, auto-decompose prompts, dispatch subagents in Claude Code",
   "bin": {
     "agentcrow": "./dist/cli.js"
@@ -29,11 +29,12 @@
   "files": [
     "dist/",
     "agents/builtin/",
-    "scripts/"
+    "scripts/agentcrow-inject.sh"
   ],
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.28.0",
-    "yaml": "^2.8.2"
+    "yaml": "^2.8.2",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/node": "^25.5.0",

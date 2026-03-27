@@ -1,19 +1,12 @@
-import * as fs from 'node:fs';
-import { spawn } from 'node:child_process';
+import { spawn, execSync } from 'node:child_process';
 import { AgentManager } from '../core/agent-manager.js';
 import { AgentCatalog } from '../core/catalog.js';
-import { c, BUILTIN_DIR, GLOBAL_BUILTIN, EXTERNAL_DIR, GLOBAL_EXTERNAL, getRoleEmoji } from '../utils/constants.js';
+import { c, getAgentDirs, getRoleEmoji } from '../utils/constants.js';
 import { recordDispatch } from '../utils/history.js';
-
-function getAgentDirs(): { bDir: string; eDir: string } {
-  const bDir = fs.existsSync(GLOBAL_BUILTIN) ? GLOBAL_BUILTIN : BUILTIN_DIR;
-  const eDir = fs.existsSync(GLOBAL_EXTERNAL) ? GLOBAL_EXTERNAL : EXTERNAL_DIR;
-  return { bDir, eDir };
-}
 
 function checkClaudeCli(): boolean {
   try {
-    const result = require('node:child_process').execSync('which claude', { stdio: 'pipe' });
+    const result = execSync('which claude', { stdio: 'pipe' });
     return result.toString().trim().length > 0;
   } catch {
     return false;

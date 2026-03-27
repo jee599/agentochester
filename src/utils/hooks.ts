@@ -2,6 +2,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { execSync } from 'node:child_process';
 
 const HOOK_SCRIPT_NAME = 'agentcrow-inject.sh';
 
@@ -14,7 +15,7 @@ function getHookScriptSource(): string {
 
   // Strategy 2: find via which agentcrow → resolve symlink → package root
   try {
-    const { execSync } = require('node:child_process');
+    // execSync imported at top level
     const binPath = execSync('which agentcrow', { stdio: 'pipe' }).toString().trim();
     const realBin = fs.realpathSync(binPath);
     // bin is at <pkg>/dist/cli.js, so go up 2 levels

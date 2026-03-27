@@ -1,7 +1,7 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { c } from './constants.js';
+import { execSync } from 'node:child_process';
 
 export function installMcpServer(global: boolean = false): void {
   const settingsDir = global ? path.join(os.homedir(), '.claude') : path.join(process.cwd(), '.claude');
@@ -24,7 +24,6 @@ export function installMcpServer(global: boolean = false): void {
   // Find the agentcrow binary path
   let binPath = 'agentcrow';
   try {
-    const { execSync } = require('node:child_process');
     const which = execSync('which agentcrow', { stdio: 'pipe' }).toString().trim();
     if (which) binPath = which;
   } catch {

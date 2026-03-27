@@ -1,13 +1,6 @@
-import * as fs from 'node:fs';
 import { AgentManager } from '../core/agent-manager.js';
 import { AgentCatalog } from '../core/catalog.js';
-import { c, VERSION, BUILTIN_DIR, GLOBAL_BUILTIN, EXTERNAL_DIR, GLOBAL_EXTERNAL, getRoleEmoji } from '../utils/constants.js';
-
-function getAgentDirs(): { bDir: string; eDir: string } {
-  const bDir = fs.existsSync(GLOBAL_BUILTIN) ? GLOBAL_BUILTIN : BUILTIN_DIR;
-  const eDir = fs.existsSync(GLOBAL_EXTERNAL) ? GLOBAL_EXTERNAL : EXTERNAL_DIR;
-  return { bDir, eDir };
-}
+import { c, VERSION, getAgentDirs, getRoleEmoji } from '../utils/constants.js';
 
 export async function cmdAgents(): Promise<void> {
   const { bDir, eDir } = getAgentDirs();

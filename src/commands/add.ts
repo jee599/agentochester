@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { execSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { AgentCatalog } from '../core/catalog.js';
 import { generateAgentIndex } from '../utils/index-generator.js';
 import { c, GLOBAL_BUILTIN, GLOBAL_EXTERNAL, GLOBAL_MD } from '../utils/constants.js';
@@ -29,7 +29,8 @@ export async function cmdAdd(input: string): Promise<void> {
     fs.mkdirSync(CUSTOM_DIR, { recursive: true });
 
     try {
-      execSync(`curl -sL "${input}" -o "${tmpPath}"`, { stdio: 'pipe' });
+      const result = spawnSync('curl', ['-sL', input, '-o', tmpPath], { stdio: 'pipe' });
+      if (result.status !== 0) throw new Error(`curl exited with ${result.status}`);
       sourcePath = tmpPath;
       tempFile = true;
       console.log(`  ${c.green('▸')} Downloaded from URL`);

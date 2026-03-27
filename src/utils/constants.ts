@@ -61,6 +61,12 @@ export const ROLE_EMOJI: Record<string, string> = {
   complexity: '🔍',
 };
 
+export function getAgentDirs(): { bDir: string; eDir: string } {
+  const bDir = fs.existsSync(GLOBAL_BUILTIN) ? GLOBAL_BUILTIN : BUILTIN_DIR;
+  const eDir = fs.existsSync(GLOBAL_EXTERNAL) ? GLOBAL_EXTERNAL : EXTERNAL_DIR;
+  return { bDir, eDir };
+}
+
 export function getRoleEmoji(role: string): string {
   for (const [key, emoji] of Object.entries(ROLE_EMOJI)) {
     if (role.includes(key)) return emoji;
