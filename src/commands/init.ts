@@ -5,6 +5,7 @@ import { spawn } from 'node:child_process';
 import { AgentCatalog } from '../core/catalog.js';
 import { installHook } from '../utils/hooks.js';
 import { installMcpServer } from '../utils/mcp-config.js';
+import { generateAgentIndex } from '../utils/index-generator.js';
 import {
   c, VERSION,
   BUILTIN_DIR, GLOBAL_BUILTIN, GLOBAL_EXTERNAL, GLOBAL_MD, GLOBAL_DIR,
@@ -107,6 +108,10 @@ export async function ensureGlobalAgents(): Promise<{ builtinDir: string; extern
   if (mdGenerated > 0) console.log(`  ${c.green('▸')} Agent definitions ··· ${c.bold(String(mdGenerated))} generated ${c.green('✓')}`);
   if (mdSkipped > 0 && mdGenerated === 0) console.log(`  ${c.green('▸')} Agent definitions ··· ${c.bold(String(mdSkipped))} ready ${c.green('✓')}`);
 
+  // 4. Generate INDEX.md for lazy-loading
+  generateAgentIndex(allAgents, GLOBAL_MD);
+  console.log(`  ${c.green('▸')} Agent index ··· INDEX.md generated ${c.green('✓')}`);
+
   return { builtinDir: GLOBAL_BUILTIN, externalDir: GLOBAL_EXTERNAL, agentCount: allAgents.length };
 }
 
@@ -115,7 +120,7 @@ function generateAgentCrowSection(agentCount: number, maxAgents: number, lang: s
 
   const rules = isKo
     ? `## 규칙
-1. 복합 요청 (2개 이상의 작업)이 들어오면 .claude/agents/에서 매칭되는 에이전트를 찾아 Agent 도구로 디스패치한다.
+1. 복합 요청 (2개 이상의 작업)이 들어오면 .claude/agents/INDEX.md에서 매칭되는 에이전트를 찾고, 해당 .md 파일을 열어 전체 정의를 확인한 후 Agent 도구로 디스패치한다.
 2. 한 번에 최대 **${maxAgents}개** 에이전트를 디스패치한다. 더 필요하면 우선순위 상위 ${maxAgents}개만.
 3. 독립적인 작업은 병렬로, 의존 관계가 있으면 순차적으로 디스패치한다.
 4. 질문하지 않는다. 판단하고 진행한다.
@@ -135,7 +140,7 @@ N개 에이전트 디스패치:
 6. 단순 요청 (버그 수정, 파일 하나 수정)은 직접 처리. 에이전트 불필요.
 7. 모든 에이전트 완료 후: \`━━━ 🐦 AgentCrow 완료 ━━━━━━━━━━━━━\``
     : `## Rules
-1. For complex requests (2+ tasks), find matching agents from .claude/agents/ and dispatch them using the Agent tool.
+1. For complex requests (2+ tasks), read .claude/agents/INDEX.md to find matching agents, then open the agent's .md file for the full definition. Dispatch using the Agent tool.
 2. Dispatch at most **${maxAgents} agents** at a time. If more are needed, pick the top ${maxAgents} by priority.
 3. Dispatch independent tasks in parallel, dependent ones sequentially.
 4. Do not ask questions. Make decisions and proceed.
