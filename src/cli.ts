@@ -8,6 +8,7 @@ import { cmdCompose } from './commands/compose.js';
 import { cmdUpdate } from './commands/update.js';
 import { cmdDoctor } from './commands/doctor.js';
 import { cmdUninstall } from './commands/uninstall.js';
+import { cmdServe } from './commands/serve.js';
 
 function printUsage(): void {
   console.log(`
@@ -24,6 +25,7 @@ function printUsage(): void {
     ${c.cyan('agentcrow update')}                      Update external agents
     ${c.cyan('agentcrow doctor')}                      Diagnose installation
     ${c.cyan('agentcrow uninstall')}                   Remove all AgentCrow data
+    ${c.cyan('agentcrow serve')}                       Start MCP server (stdio)
 
   ${c.bold('Examples:')}
     ${c.dim('$')} agentcrow init --global    ${c.dim('# once, works everywhere')}
@@ -52,7 +54,8 @@ async function main(): Promise<void> {
       const maxIdx = args.indexOf('--max');
       const maxRaw = maxIdx !== -1 && args[maxIdx + 1] ? parseInt(args[maxIdx + 1], 10) : 5;
       const maxAgents = Number.isNaN(maxRaw) || maxRaw < 1 ? 5 : maxRaw;
-      await cmdInit(lang, maxAgents, isGlobal);
+      const isMcp = args.includes('--mcp');
+      await cmdInit(lang, maxAgents, isGlobal, isMcp);
       break;
     }
 
@@ -98,6 +101,10 @@ async function main(): Promise<void> {
 
     case 'uninstall':
       cmdUninstall();
+      break;
+
+    case 'serve':
+      await cmdServe();
       break;
 
     default:

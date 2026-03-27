@@ -2,6 +2,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { removeHook } from '../utils/hooks.js';
+import { removeMcpServer } from '../utils/mcp-config.js';
 import { c, AGENTCROW_START, AGENTCROW_END } from '../utils/constants.js';
 
 export function cmdUninstall(): void {
@@ -67,6 +68,10 @@ export function cmdUninstall(): void {
     // Remove hook
     removeHook(label === 'global' ? os.homedir() : process.cwd(), label === 'global');
     console.log(`  ${c.green('▸')} Removed hook ${c.dim(`(${label})`)}`);
+
+    // Remove MCP server
+    removeMcpServer(label === 'global');
+    console.log(`  ${c.green('▸')} Removed MCP server ${c.dim(`(${label})`)}`);
   }
 
   console.log();

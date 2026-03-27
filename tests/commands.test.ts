@@ -126,4 +126,58 @@ describe('init command --lang', () => {
     const content = fs.readFileSync(initPath, 'utf-8');
     expect(content).toContain("lang: string = 'en'");
   });
+
+  it('--mcp 옵션을 지원한다', () => {
+    const content = fs.readFileSync(initPath, 'utf-8');
+    expect(content).toContain('mcp: boolean');
+    expect(content).toContain('installMcpServer');
+  });
+});
+
+describe('serve command (MCP server)', () => {
+  const servePath = path.resolve('src/commands/serve.ts');
+
+  it('serve.ts가 존재한다', () => {
+    expect(fs.existsSync(servePath)).toBe(true);
+  });
+
+  it('MCP SDK를 사용한다', () => {
+    const content = fs.readFileSync(servePath, 'utf-8');
+    expect(content).toContain('McpServer');
+    expect(content).toContain('StdioServerTransport');
+  });
+
+  it('3개 tool을 등록한다 (match, search, list)', () => {
+    const content = fs.readFileSync(servePath, 'utf-8');
+    expect(content).toContain("'agentcrow_match'");
+    expect(content).toContain("'agentcrow_search'");
+    expect(content).toContain("'agentcrow_list'");
+  });
+
+  it('zod 스키마로 tool 파라미터를 정의한다', () => {
+    const content = fs.readFileSync(servePath, 'utf-8');
+    expect(content).toContain('z.string()');
+    expect(content).toContain('z.number()');
+  });
+});
+
+describe('MCP config utils', () => {
+  const mcpConfigPath = path.resolve('src/utils/mcp-config.ts');
+
+  it('mcp-config.ts가 존재한다', () => {
+    expect(fs.existsSync(mcpConfigPath)).toBe(true);
+  });
+
+  it('installMcpServer가 settings.json에 mcpServers를 추가한다', () => {
+    const content = fs.readFileSync(mcpConfigPath, 'utf-8');
+    expect(content).toContain('mcpServers');
+    expect(content).toContain('agentcrow');
+    expect(content).toContain("args: ['serve']");
+  });
+
+  it('removeMcpServer가 정리한다', () => {
+    const content = fs.readFileSync(mcpConfigPath, 'utf-8');
+    expect(content).toContain('export function removeMcpServer');
+    expect(content).toContain('delete settings.mcpServers.agentcrow');
+  });
 });

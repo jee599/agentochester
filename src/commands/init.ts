@@ -4,6 +4,7 @@ import * as path from 'node:path';
 import { spawn } from 'node:child_process';
 import { AgentCatalog } from '../core/catalog.js';
 import { installHook } from '../utils/hooks.js';
+import { installMcpServer } from '../utils/mcp-config.js';
 import {
   c, VERSION,
   BUILTIN_DIR, GLOBAL_BUILTIN, GLOBAL_EXTERNAL, GLOBAL_MD, GLOBAL_DIR,
@@ -180,7 +181,7 @@ ${roleEmojiGuide}
 ${AGENTCROW_END}`;
 }
 
-export async function cmdInit(lang: string = 'en', maxAgents: number = 5, global: boolean = false): Promise<void> {
+export async function cmdInit(lang: string = 'en', maxAgents: number = 5, global: boolean = false, mcp: boolean = false): Promise<void> {
   const targetBase = global ? path.join(os.homedir(), '.claude') : path.join(process.cwd(), '.claude');
   const modeLabel = global ? 'global' : 'project';
 
@@ -267,8 +268,17 @@ export async function cmdInit(lang: string = 'en', maxAgents: number = 5, global
   installHook(global ? os.homedir() : process.cwd(), global);
   console.log(`  ${c.green('▸')} SessionStart hook ··· installed ${c.dim(`(${modeLabel})`)} ${c.green('✓')}`);
 
+  // 6. Install MCP server (optional)
+  if (mcp) {
+    installMcpServer(global);
+    console.log(`  ${c.green('▸')} MCP server ··· registered ${c.dim(`(${modeLabel})`)} ${c.green('✓')}`);
+  }
+
   console.log();
   console.log(`  ${c.green('✓')} ${c.purple('AgentCrow')} ready — ${c.bold(String(allAgents.length))} agents, max ${c.bold(String(maxAgents))} per dispatch ${c.dim(`(${modeLabel})`)}`);
+  if (mcp) {
+    console.log(`  ${c.dim('MCP server: Claude Code will auto-start agentcrow serve')}`);
+  }
   if (global) {
     console.log(`  ${c.dim('Works in all projects. No per-project init needed.')}`);
   }
