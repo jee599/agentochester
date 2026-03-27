@@ -5,69 +5,151 @@
 </h1>
 
 <h3 align="center">
-  Ein Prompt. AgentCrow zerlegt ihn und verteilt spezialisierte Agenten parallel. 9 builtin + externe Agenten.<br>
-  <code>agentcrow init</code> → <code>claude</code> → automatisches Dispatching.
+  Jeder Subagent, den Claude erzeugt, erhält eine Experten-Persona — automatisch.<br>
+  150 Agenten. Hook-erzwungen. Keine Konfiguration.
 </h3>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/agentcrow"><img src="https://img.shields.io/npm/v/agentcrow?style=flat-square&color=violet" alt="npm" /></a>
-  <img src="https://img.shields.io/badge/agents-9_builtin-brightgreen?style=flat-square" alt="Agents" />
-  <img src="https://img.shields.io/badge/tests-118_passing-brightgreen?style=flat-square" alt="Tests" />
+  <img src="https://img.shields.io/badge/agents-150-brightgreen?style=flat-square" alt="Agents" />
+  <img src="https://img.shields.io/badge/tests-187_passing-brightgreen?style=flat-square" alt="Tests" />
+  <img src="https://img.shields.io/badge/hook-PreToolUse-blue?style=flat-square" alt="Hook" />
   <a href="LICENSE"><img src="https://img.shields.io/github/license/jee599/agentcrow?style=flat-square" alt="License" /></a>
 </p>
 
 <p align="center">
+  <a href="#the-problem">Problem</a> •
+  <a href="#quickstart">Schnellstart</a> •
+  <a href="#how-it-works">Funktionsweise</a> •
+  <a href="#commands">Befehle</a> •
+  <a href="#agents">Agenten</a> •
   <a href="../README.md">English</a> •
   <a href="README.ko.md">한국어</a> •
-  <a href="README.ja.md">日本語</a> •
-  <a href="README.zh.md">中文</a> •
-  <a href="README.es.md">Español</a> •
-  <a href="README.pt.md">Português</a> •
-  Deutsch •
-  <a href="README.fr.md">Français</a> •
-  <a href="README.ru.md">Русский</a> •
-  <a href="README.hi.md">हिन्दी</a> •
-  <a href="README.tr.md">Türkçe</a> •
-  <a href="README.vi.md">Tiếng Việt</a>
+  <a href="README.ja.md">日本語</a>
 </p>
 
 ---
 
-<p align="center">
-  <img src="../assets/demo.gif" alt="AgentCrow demo — auto-dispatching agents" width="720" />
-</p>
+<a id="the-problem"></a>
+## Das Problem
+
+Wenn Claude Code einen Subagenten erzeugt, ist dieser ein **leerer Generalist**. Keine Expertise, keine Regeln, keine Persönlichkeit. Er erledigt, was du verlangst, aber nicht *wie ein Spezialist es tun würde*.
+
+```
+Du: "Baue ein SaaS mit Authentifizierung, Tests und Dokumentation"
+
+Claude erzeugt 4 Subagenten:
+  Agent 1: (leer) → schreibt Auth-Code
+  Agent 2: (leer) → schreibt Tests
+  Agent 3: (leer) → schreibt Dokumentation
+  Agent 4: (leer) → schreibt UI
+
+  = generischer Output
+  = keine Coding-Standards
+  = kein Spezialwissen angewendet
+```
+
+AgentCrow löst dieses Problem. Ein **PreToolUse Hook** fängt jeden Agent-Tool-Aufruf ab und injiziert die richtige Experten-Persona — bevor der Subagent überhaupt startet:
+
+```
+Du: derselbe Prompt
+
+AgentCrow fängt jeden Agent-Tool-Aufruf ab:
+  Agent 1: → 🏗️ Backend-Architekt-Persona injiziert
+            "Paranoid bei Datenintegrität. Deployed nie ohne Migrationen."
+  Agent 2: → 🧪 QA-Engineer-Persona injiziert
+            "Behandelt 'funktioniert wahrscheinlich' als persönliche Beleidigung."
+  Agent 3: → 📝 Technical-Writer-Persona injiziert
+            "Jeder Satz verdient seinen Platz."
+  Agent 4: → 🖥️ Frontend-Entwickler-Persona injiziert
+            "Komposition über Vererbung, immer."
+
+  = Spezialisten-Output
+  = MUST/MUST NOT Regeln durchgesetzt
+  = konkrete Deliverables definiert
+```
+
+**Kein anderes Tool macht das.** Nicht ECC (100K⭐), nicht agency-agents (59K⭐), nicht wshobson (31K⭐). AgentCrow ist das einzige Tool, das Persona-Injektion auf Hook-Ebene erzwingt.
 
 ---
 
-```
-  Du:    "Erstelle ein CRM mit Kundenverwaltung, Berichten und API"
-
-  AgentCrow zerlegt → 5 Agenten:
-
-    🖥️  frontend_developer  → CRM-Dashboard, Kundenlisten, Diagramme
-    🏗️  backend_architect   → REST API, Datenbank-Schema, Authentifizierung
-    🎨  ui_designer         → Responsive Layout, Formular-Design, Berichte
-    🧪  qa_engineer         → E2E-Tests fuer Kundenflows, API-Tests
-    📝  technical_writer    → API-Dokumentation, Benutzerhandbuch
-
-  Du hast die Agenten nicht gewaehlt. AgentCrow hat es getan.
-```
-
-<h3 align="center">⬇️ Eine Zeile. Das war's.</h3>
+<a id="quickstart"></a>
+## ⚡ Schnellstart
 
 ```bash
 npm i -g agentcrow
-agentcrow init
+agentcrow init --global
 ```
 
-<p align="center">
-  Danach einfach <code>claude</code> wie gewohnt ausfuehren. AgentCrow erledigt den Rest.<br>
-  <b>macOS · Linux · Windows</b>
-</p>
+Das war's. Zwei Befehle. Ab jetzt:
+- Komplexer Prompt → Claude zerlegt in Aufgaben → erzeugt Subagenten
+- Jeder Subagent → AgentCrows Hook fängt ab → injiziert Experten-Persona
+- Der Subagent arbeitet als Spezialist, nicht als Generalist
+
+> [!TIP]
+> Englische Nutzer: `agentcrow init --global --lang en`
+> 한국어: `agentcrow init --global --lang ko`
 
 ---
 
-## 👀 Before / After
+<a id="how-it-works"></a>
+## ⚙️ Funktionsweise
+
+```
+Dein Prompt: "Baue eine Todo-App mit Auth, Tests und Docs"
+                    │
+                    ▼
+  Claude zerlegt in 4 Aufgaben
+                    │
+                    ▼
+  Claude ruft das Agent-Tool auf:
+    { name: "qa_engineer", prompt: "Schreibe E2E-Tests" }
+                    │
+                    ▼
+  ┌─────────────────────────────────────────┐
+  │  PreToolUse Hook (automatisch)          │
+  │                                         │
+  │  agentcrow-inject.sh → agentcrow inject │
+  │    1. Lädt catalog-index.json (~5ms)    │
+  │    2. Sucht "qa_engineer" → exakter Match│
+  │    3. Lädt QA-Engineer-Persona          │
+  │    4. Stellt via updatedInput voran     │
+  └─────────────────────────────────────────┘
+                    │
+                    ▼
+  Subagent startet mit vollständiger Persona:
+    <AGENTCROW_PERSONA>
+    You are QA Engineer — test specialist
+    ## Identity
+    Treats 'it probably works' as a personal insult.
+    ## MUST
+    - Test every public function
+    - Cover happy path, edge case, error path
+    ## MUST NOT
+    - Never test implementation details
+    - Never use sleep for async waits
+    ## Deliverables
+    - Unit tests, Integration tests, E2E tests
+    </AGENTCROW_PERSONA>
+
+    Write E2E tests    ← Original-Prompt bleibt erhalten
+```
+
+### Drei Matching-Strategien
+
+| Priorität | Strategie | Beispiel |
+|-----------|----------|---------|
+| 1 | Exakte Namensübereinstimmung | `name: "qa_engineer"` → QA Engineer |
+| 2 | Subagent-Typ-Übereinstimmung | `subagent_type: "security_auditor"` → Security Auditor |
+| 3 | Keyword + Synonym Fuzzy | `"kubernetes helm deploy"` → DevOps Automator |
+
+Fuzzy-Matching verwendet eine **Synonym-Map** (50+ Einträge) und **Verlaufslernen** — häufig genutzte Agenten erhalten höhere Matching-Priorität.
+
+Integrierte Claude-Typen (`Explore`, `Plan`, `general-purpose`) werden nie abgefangen.
+
+---
+
+## 👀 Vorher / Nachher
 
 <table>
 <tr>
@@ -75,17 +157,15 @@ agentcrow init
 
 **❌ Ohne AgentCrow**
 ```
-Du: Erstelle ein Dashboard mit API,
-    Tests und Dokumentation
+Claude erzeugt leeren Subagenten:
+  prompt: "Schreibe Tests für Auth"
 
-Claude: (ein Agent macht alles)
-        - liest alle Dateien
-        - schreibt allen Code
-        - fuehrt alle Tests aus
-        - schreibt alle Doku
-        = ein Kontextfenster
-        = vergisst fruehere Arbeit
-        = 10+ Minuten
+  Ergebnis:
+  - Generische Testdatei
+  - Keine AAA-Struktur
+  - Edge Cases übersprungen
+  - Keine Coverage-Ziele
+  - 15 Minuten mittelmäßiger Output
 ```
 
 </td>
@@ -93,18 +173,19 @@ Claude: (ein Agent macht alles)
 
 **✅ Mit AgentCrow**
 ```
-Du: selber Prompt
+AgentCrow injiziert QA-Persona:
+  prompt: <AGENTCROW_PERSONA>
+    MUST: jede öffentliche Funktion testen
+    MUST NOT: keine Implementierungsdetails testen
+    Deliverables: Unit + Integration + E2E
+  </AGENTCROW_PERSONA>
+  Schreibe Tests für Auth
 
-AgentCrow dispatcht automatisch:
-  @ui_designer     → Layout
-  @frontend_dev    → React-Code
-  @backend_arch    → API
-  @qa_engineer     → Tests
-  @tech_writer     → Dokumentation
-
-  = parallele Agenten
-  = jeder fokussiert
-  = bessere Ergebnisse
+  Ergebnis:
+  - AAA-strukturierte Tests
+  - Happy Path + Edge + Error abgedeckt
+  - Coverage-Report enthalten
+  - CI-Konfiguration generiert
 ```
 
 </td>
@@ -113,124 +194,156 @@ AgentCrow dispatcht automatisch:
 
 ---
 
-<a id="install"></a>
-## ⚡ Installation
-
-```bash
-npm i -g agentcrow
-agentcrow init
-```
-
-Das war's. Zwei Dinge passieren:
-
-**Beim ersten Mal** — Agenten werden nach `~/.agentcrow/` heruntergeladen (global, projektuebergreifend)
-
-**Bei jedem Aufruf** — AgentCrow-Abschnitt wird in `.claude/CLAUDE.md` gemergt (bestehende Regeln bleiben erhalten)
-
-> [!NOTE]
-> Agenten werden global unter `~/.agentcrow/` gespeichert. Ab dem zweiten Projekt = sofort, kein Download.
-
-> [!TIP]
-> Du hast bereits eine CLAUDE.md? AgentCrow **haengt** seinen Abschnitt an — deine bestehenden Regeln bleiben unangetastet.
-
-<a id="how-it-works"></a>
-## ⚙️ So funktioniert es
-
-```
-  ┌─────────────────────────────────────┐
-  │  Your prompt                        │
-  │           ↓                         │
-  │  ┌────────────────────────────┐     │
-  │  │ CLAUDE.md reads agent list │     │
-  │  │ Claude decomposes prompt   │     │
-  │  │ Dispatches Agent tool      │     │
-  │  │ Each agent works in scope  │     │
-  │  └────────────────────────────┘     │
-  │           ↓                         │
-  │  Files created, tests written,      │
-  │  docs generated — by specialists    │
-  └─────────────────────────────────────┘
-```
-
-1. **Du startest `claude`** in einem Projekt mit initialisiertem AgentCrow
-2. **Du gibst einen Prompt ein** — eine beliebig komplexe Aufgabe
-3. **Claude liest CLAUDE.md** — erkennt die Agentenliste und Dispatch-Regeln
-4. **Claude zerlegt** — teilt deinen Prompt in fokussierte Teilaufgaben
-5. **Claude dispatcht** — erstellt Subagenten ueber das Agent-Tool
-6. **Jeder Agent arbeitet** — in seinem Fachgebiet
-
-Kein API-Key. Kein Server. Nur Claude Code + CLAUDE.md.
-
-<a id="agents"></a>
-## 🤖 9 Builtin-Agenten + Externe Agenten
-
-| Abteilung | Beispiele |
-|:---------|:---------|
-| **Engineering** | frontend_developer, backend_architect, ai_engineer, sre |
-| **Game Dev** | game_designer, level_designer, unreal, unity, godot |
-| **Marketing** | content_strategist, seo_specialist, social_media |
-| **Testing** | test_automation, performance_tester |
-| **Design** | ui_designer, ux_researcher, brand_guardian |
-| **Builtin** | qa_engineer, korean_tech_writer, security_auditor |
-| + more | sales, support, product, strategy, spatial-computing... |
-
 <a id="commands"></a>
 ## 🔧 Befehle
 
 ```bash
-agentcrow init                # Agenten + CLAUDE.md einrichten (aktuelles Projekt)
-agentcrow init --global       # Einmal einrichten, funktioniert in allen Projekten
-agentcrow init --lang ko      # Koreanisches Template
-agentcrow init --max 5        # Maximum gleichzeitiger Agenten
-agentcrow status              # Status pruefen (Projekt + Global)
-agentcrow off [--global]      # Voruebergehend deaktivieren
-agentcrow on [--global]       # Wieder aktivieren
-agentcrow agents              # Alle Agenten auflisten
-agentcrow agents search ai    # Nach Stichwort suchen
-agentcrow compose "prompt"    # Zerlegungsvorschau (Dry Run)
+# Installation & Setup
+agentcrow init [--global] [--lang en|ko] [--max 5] [--mcp]
+
+# Lebenszyklus
+agentcrow on / off [--global]   # Aktivieren/Deaktivieren
+agentcrow status                # Installation prüfen
+agentcrow doctor                # 12-Punkte-Diagnose
+agentcrow update                # Neueste Agenten abrufen
+agentcrow uninstall             # Saubere Deinstallation
+
+# Agenten-Verwaltung
+agentcrow agents                # Alle 150 Agenten auflisten
+agentcrow agents search <query> # Keyword-Suche
+agentcrow add <path|url>        # Benutzerdefinierten Agenten hinzufügen (.md/.yaml)
+agentcrow remove <role>         # Benutzerdefinierten Agenten entfernen
+
+# Inspektion & Debug
+agentcrow compose <prompt>      # Zerlegung vorschauen (Dry Run)
+agentcrow stats                 # Dispatch-Verlauf & Analytics
+agentcrow inject                # Hook-Handler (intern)
+
+# MCP-Server
+agentcrow serve                 # MCP-Server starten (stdio)
 ```
 
-## 💡 Prompt-Beispiele
+---
+
+<a id="agents"></a>
+## 🤖 150 Agenten
+
+### 14 handgefertigte integrierte Agenten
+
+Jeder integrierte Agent hat Persönlichkeit, Kommunikationsstil, Denkmodell, MUST/MUST NOT Regeln, Deliverables und Erfolgsmetriken.
+
+| Agent | Funktion | Kernregel |
+|-------|----------|-----------|
+| **Frontend Developer** | React/Next.js, Core Web Vitals, WCAG AA | "Komposition über Vererbung, immer" |
+| **Backend Architect** | API-Design, Auth, Datenbank, Caching | "Deployed nie ohne Migrationen" |
+| **QA Engineer** | Unit-/Integrations-/E2E-Tests, Coverage | "Ungetesteter Code ist fehlerhafter Code" |
+| **Security Auditor** | OWASP, CVSS-Bewertung, PoC für jeden Fund | "Sagt nie 'der Code ist sicher'" |
+| **UI Designer** | Design-Systeme, Tokens, Spacing-Skalen | "Was nicht im Token-System ist, existiert nicht" |
+| **DevOps Automator** | CI/CD, Docker, K8s, Secrets-Management | "Keine :latest Tags in Produktion" |
+| **AI Engineer** | LLM-Integration, RAG, Prompt-Optimierung | "LLMs sind unzuverlässige Komponenten, die Guardrails brauchen" |
+| **Refactoring Specialist** | Code Smells, Fowler-Katalog, Strangler Fig | "Nie refactorn ohne Tests" |
+| **Complexity Critic** | Zyklomatische Komplexität, YAGNI-Durchsetzung | "Nie etwas komplex nennen ohne Beweis" |
+| **Data Pipeline Engineer** | ETL, Idempotenz, Schema-Migrationen | "Idempotenz ist nicht verhandelbar" |
+| **Technical Writer** | API-Docs, Guides, READMEs | "Jeder Satz verdient seinen Platz" |
+| **Translator** | i18n, Locale-Dateien, technische Übersetzung | "Nie Code-Bezeichner übersetzen" |
+| **Compose Meta-Reviewer** | Agenten-Team-Zusammensetzungen auditieren | "Ausführung unter Score 70 blockieren" |
+| **Unreal GAS Specialist** | GameplayAbilitySystem, UE5 C++ | "Keine Schadensberechnung in GameplayAbilities" |
+
+### 136 externe Agenten (13 Abteilungen)
+
+Von [agency-agents](https://github.com/msitarzewski/agency-agents): engineering, game-dev, design, marketing, testing, sales, support, product, strategy, spatial-computing, academic, paid-media, project-management.
+
+---
+
+## ➕ Benutzerdefinierte Agenten
+
+```bash
+agentcrow add ./my-agent.yaml           # Lokale Datei
+agentcrow add https://example.com/a.md  # URL
+agentcrow remove my_agent               # Entfernen (nur benutzerdefinierte)
+```
+
+---
+
+## 🔌 MCP-Server (Optional)
+
+```bash
+agentcrow init --global --mcp
+```
+
+Fügt 3 Tools zu Claude Code hinzu: `agentcrow_match`, `agentcrow_search`, `agentcrow_list`. Claude kann den Agenten-Katalog programmatisch abfragen.
+
+---
+
+## 📊 Statistiken
+
+```bash
+agentcrow stats
+```
 
 ```
-Erstelle ein CRM mit Kundenverwaltung, Berichten und API
-→ frontend_developer + backend_architect + ui_designer + qa_engineer
+  🐦 AgentCrow Stats
 
-Rezepte-App mit Bildupload, Suche und Bewertungssystem erstellen
-→ frontend_developer + backend_architect + devops_automator + qa_engineer
+  Match Quality
+    exact  38 (81%)    ← Name direkt übereinstimmend
+    fuzzy   7 (15%)    ← Keyword + Synonym übereinstimmend
+    none    2 (4%)     ← kein Match, Passthrough
 
-Projektmanagement-Tool mit Kanban-Board, Zeiterfassung und Reporting
-→ frontend_developer + backend_architect + ui_designer + qa_engineer
+  Top Agents
+    frontend_developer     12 ████████████
+    qa_engineer             8 ████████
+    backend_architect       6 ██████
 ```
 
-Einfache Prompts laufen normal. AgentCrow greift nur bei Multi-Task-Anfragen ein.
+---
 
-## 🛡️ Null Overhead
+## 🛡️ Sicherheit & Performance
 
 | | |
 |:---|:---|
-| 🟢 Komplexe Prompts | Automatisch in Agenten zerlegt |
-| 🔵 Einfache Prompts | Laufen normal, keine Agenten |
-| 🔴 `agentcrow off` | Vollstaendig deaktiviert |
+| Hook-Latenz | **< 50ms** pro Agent-Tool-Aufruf |
+| Token-Overhead | **~350 Tokens** pro Persona-Injektion |
+| Fail-open | Fehlender Index oder Binary → Passthrough (kein Bruch) |
+| Claude-Builtin-Typen | `Explore`, `Plan`, `general-purpose` → nie abgefangen |
+| Einfache Prompts | Kein Agenten-Dispatch, null Overhead |
+| `agentcrow off` | Vollständig deaktiviert, alles gesichert |
 
-> [!IMPORTANT]
-> AgentCrow beruehrt nur `.claude/CLAUDE.md` und `.claude/agents/`. Keine Projektabhaengigkeiten, keine Hintergrundprozesse. `agentcrow off` sichert und entfernt beides sauber.
+---
+
+## 🏗️ Architektur
+
+```
+~/.agentcrow/
+  ├── agents/
+  │   ├── builtin/          14 YAML (handgefertigt)
+  │   ├── external/         136 MD (agency-agents)
+  │   └── md/               150 vereinheitlichte .md Dateien
+  ├── catalog-index.json    Vorgebaut für <5ms Lookup
+  └── history.json          Dispatch-Aufzeichnungen (letzte 1000)
+
+~/.claude/
+  ├── settings.json         SessionStart + PreToolUse hooks
+  └── hooks/
+      └── agentcrow-inject.sh
+```
+
+---
 
 ## 🤝 Mitwirken
 
 ```bash
-git clone --recursive https://github.com/jee599/agentcrow.git
-cd agentcrow && npm install && npm test  # 118 tests
+git clone https://github.com/jee599/agentcrow.git
+cd agentcrow && npm install && npm test  # 187 tests
 ```
 
 ## 📜 Lizenz
 
-MIT — Externe Agenten von [agency-agents](https://github.com/msitarzewski/agency-agents).
+MIT
 
 ---
 
 <p align="center">
-  <b>🐦 Ein Prompt. Viele Agenten. Null Konfiguration.</b>
+  <b>🐦 Jeder Subagent verdient eine Persona.</b>
 </p>
 
 <p align="center">

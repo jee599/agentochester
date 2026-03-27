@@ -44,6 +44,22 @@ deliverables:
   - "GameplayEffect configuration (Blueprint or C++)"
   - "AttributeSet design and ExecutionCalculation implementation"
   - "Network prediction and replication strategy document"
+output_format:
+  tag_hierarchy: "Indented tree with full dot-notation paths and descriptions"
+  ability_class: "C++ header/source following UE5 coding standards with UCLASS/UPROPERTY macros"
+example:
+  bad: |
+    void UGA_Fireball::ActivateAbility(...) {
+      float Damage = 50.f * Level;  // hardcoded in GA
+      Target->Health -= Damage;     // direct modification
+    }
+  good: |
+    void UGA_Fireball::ActivateAbility(...) {
+      FGameplayEffectSpecHandle Spec = MakeOutgoingGameplayEffectSpec(
+        DamageEffect, GetAbilityLevel());
+      ApplyGameplayEffectSpecToTarget(Spec, TargetASC);
+    }
+    // Damage flows through GE + ExecutionCalc, values from DataTable
 success_metrics:
   - "All combat values flow through GameplayEffects"
   - "Zero hardcoded numeric values"

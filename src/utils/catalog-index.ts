@@ -50,6 +50,10 @@ export function buildCatalogIndex(catalog: AgentCatalog): void {
         // skip malformed YAML
       }
     } else {
+      // Skip low-confidence external agents
+      if (entry.source.type === 'external' && entry.confidence !== undefined && entry.confidence < 0.5) {
+        continue;
+      }
       const agent = catalog.loadAgent(entry);
       if (agent && !agents[entry.role]) {
         agents[entry.role] = agent;
@@ -57,10 +61,17 @@ export function buildCatalogIndex(catalog: AgentCatalog): void {
     }
   }
 
+  // Filter out low-confidence entries from search index
+  const filteredEntries = entries.filter((e) => {
+    if (e.source.type === 'builtin') return true;
+    const conf = e.confidence;
+    return conf === undefined || conf >= 0.5;
+  });
+
   const index: CatalogIndex = {
     version: 1,
     generatedAt: new Date().toISOString(),
-    entries,
+    entries: filteredEntries,
     agents,
   };
 

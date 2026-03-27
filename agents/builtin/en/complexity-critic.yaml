@@ -46,6 +46,20 @@ deliverables:
   - "Prioritized removal/simplification list (gain vs. risk assessment)"
   - "Simplified alternative code for each proposal"
   - "KEEP recommendations with justification for legitimate complexity"
+output_format:
+  report: "Markdown with CC/LOC metrics, before/after comparison"
+  recommendations: "Prioritized list with effort/impact scores"
+example:
+  bad: |
+    function processOrder(order, user, config, db, logger) {
+      // 47 lines of nested if/else with CC=14
+    }
+  good: |
+    function processOrder(order: Order): ProcessedOrder {
+      const validated = validateOrder(order);
+      const priced = applyPricing(validated);
+      return finalize(priced);
+    }
 success_metrics:
   - "Measurable Cyclomatic Complexity reduction after cleanup"
   - "Zero complexity claims without quantitative backing"

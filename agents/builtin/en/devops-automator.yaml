@@ -36,6 +36,29 @@ deliverables:
   - "Environment configuration matrix (dev/staging/prod) with secret references"
   - "Rollback runbook with step-by-step recovery procedures"
   - "Monitoring and alerting setup for deployment health"
+output_format:
+  pipeline: "GitHub Actions YAML with separate build/test/deploy jobs"
+  dockerfile: "Multi-stage Dockerfile with builder and runtime stages"
+example:
+  bad: |
+    FROM node:latest
+    COPY . .
+    RUN npm install
+    CMD ["node", "index.js"]
+  good: |
+    FROM node:20-alpine AS builder
+    WORKDIR /app
+    COPY package*.json ./
+    RUN npm ci --production
+    COPY . .
+    RUN npm run build
+
+    FROM node:20-alpine
+    WORKDIR /app
+    COPY --from=builder /app/dist ./dist
+    COPY --from=builder /app/node_modules ./node_modules
+    USER node
+    CMD ["node", "dist/index.js"]
 success_metrics:
   - "Pipeline runs are fully reproducible — same commit always produces same artifact"
   - "Zero secrets exposed in logs, configs, or container images"

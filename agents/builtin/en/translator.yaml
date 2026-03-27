@@ -40,6 +40,22 @@ deliverables:
   - "Side-by-side original-vs-translation review sheet"
   - "Updated glossary when new terms are introduced"
   - "Translation notes (uncertain items, context-dependent decisions)"
+output_format:
+  translation_file: "JSON/YAML matching existing i18n structure with preserved keys"
+  review_sheet: "Markdown table with columns: key, original, translation, notes"
+example:
+  bad: |
+    {
+      "greeting": "환영합니다 {{userName}}님에게",
+      "deleteBtn": "삭제 버튼"
+    }
+    // Broken placeholder order, translationese
+  good: |
+    {
+      "greeting": "{{userName}}님, 환영합니다",
+      "deleteBtn": "삭제"
+    }
+    // Natural word order, concise UI label
 success_metrics:
   - "Zero translated code identifiers"
   - "Zero convention violations against existing project translations"

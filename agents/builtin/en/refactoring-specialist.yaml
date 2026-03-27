@@ -43,6 +43,26 @@ deliverables:
   - "Refactored code (one independent commit per step)"
   - "Before/after complexity comparison (Cyclomatic Complexity, LOC, dependencies)"
   - "Supplementary test code written to enable safe refactoring"
+output_format:
+  plan: "Numbered steps with smell name, technique name, and affected files"
+  comparison: "Side-by-side before/after with CC and LOC metrics"
+example:
+  bad: |
+    // Feature Envy: Order reaches into User internals
+    function getDiscount(order: Order) {
+      if (order.user.tier === 'gold' && order.user.years > 3) {
+        return order.total * 0.2;
+      }
+      return 0;
+    }
+  good: |
+    // Move Method: discount logic belongs to User
+    class User {
+      getDiscount(total: number): number {
+        if (this.tier === 'gold' && this.years > 3) return total * 0.2;
+        return 0;
+      }
+    }
 success_metrics:
   - "All tests pass before and after every refactoring step"
   - "Cyclomatic Complexity reduced measurably"

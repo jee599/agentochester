@@ -38,6 +38,7 @@ export interface CatalogEntry {
   division: string;
   source: AgentSource;
   filePath: string;
+  confidence?: number;
 }
 
 export interface Task {

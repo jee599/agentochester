@@ -5,106 +5,187 @@
 </h1>
 
 <h3 align="center">
-  输入一个 prompt，AgentCrow 自动拆分到专业 Agent 并行执行。9 个内置 + 外部 Agent。<br>
-  <code>agentcrow init</code> → <code>claude</code> → 自动调度。
+  Claude生成的每个子代理都会自动获得专家人格。<br>
+  150个代理。Hook强制执行。零配置。
 </h3>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/agentcrow"><img src="https://img.shields.io/npm/v/agentcrow?style=flat-square&color=violet" alt="npm" /></a>
-  <img src="https://img.shields.io/badge/agents-9_builtin-brightgreen?style=flat-square" alt="Agents" />
-  <img src="https://img.shields.io/badge/tests-118_passing-brightgreen?style=flat-square" alt="Tests" />
+  <img src="https://img.shields.io/badge/agents-150-brightgreen?style=flat-square" alt="Agents" />
+  <img src="https://img.shields.io/badge/tests-187_passing-brightgreen?style=flat-square" alt="Tests" />
+  <img src="https://img.shields.io/badge/hook-PreToolUse-blue?style=flat-square" alt="Hook" />
   <a href="LICENSE"><img src="https://img.shields.io/github/license/jee599/agentcrow?style=flat-square" alt="License" /></a>
 </p>
 
 <p align="center">
-  <a href="../README.md">English</a> •
+  <a href="#the-problem">问题</a> •
+  <a href="#quickstart">快速开始</a> •
+  <a href="#how-it-works">工作原理</a> •
+  <a href="#commands">命令</a> •
+  <a href="#agents">代理</a> •
   <a href="README.ko.md">한국어</a> •
-  <a href="README.ja.md">日本語</a> •
-  中文 •
-  <a href="README.es.md">Español</a> •
-  <a href="README.pt.md">Português</a> •
-  <a href="README.de.md">Deutsch</a> •
-  <a href="README.fr.md">Français</a> •
-  <a href="README.ru.md">Русский</a> •
-  <a href="README.hi.md">हिन्दी</a> •
-  <a href="README.tr.md">Türkçe</a> •
-  <a href="README.vi.md">Tiếng Việt</a>
+  <a href="../README.md">English</a> •
+  <a href="README.ja.md">日本語</a>
 </p>
 
 ---
 
-<p align="center">
-  <img src="../assets/demo.gif" alt="AgentCrow demo — auto-dispatching agents" width="720" />
-</p>
+<a id="the-problem"></a>
+## 问题
+
+Claude Code生成子代理时，它是一个**空白的通用助手**。没有专业知识，没有规则，没有个性。它执行你的请求，但不是*以专家的方式*执行。
+
+```
+你: "构建一个带认证、测试和文档的SaaS"
+
+Claude生成4个子代理:
+  Agent 1: (空白) → 写认证代码
+  Agent 2: (空白) → 写测试
+  Agent 3: (空白) → 写文档
+  Agent 4: (空白) → 写UI
+
+  = 通用输出
+  = 没有编码规范
+  = 没有专家知识
+```
+
+AgentCrow解决了这个问题。一个**PreToolUse Hook**拦截每个Agent tool调用，在子代理启动之前注入正确的专家人格：
+
+```
+你: 相同的提示词
+
+AgentCrow拦截每个Agent tool调用:
+  Agent 1: → 🏗️ 注入后端架构师人格
+            "对数据完整性极度严谨。没有迁移脚本绝不上线。"
+  Agent 2: → 🧪 注入QA工程师人格
+            "把'大概能用'视为人身侮辱。"
+  Agent 3: → 📝 注入技术写作者人格
+            "每一句话都要有存在的价值。"
+  Agent 4: → 🖥️ 注入前端开发者人格
+            "组合优于继承，永远如此。"
+
+  = 专家级输出
+  = MUST/MUST NOT规则强制执行
+  = 明确的交付物定义
+```
+
+**没有其他工具能做到这一点。** ECC（100K⭐）不行，agency-agents（59K⭐）不行，wshobson（31K⭐）也不行。AgentCrow是唯一在Hook层面强制执行人格注入的工具。
 
 ---
 
-```
-  你:    "做一个AI股票分析工具，能爬取数据、分析趋势、生成报告"
-
-  AgentCrow 自动分解 → 5 个 Agent:
-
-    🤖  ai_engineer         → 趋势预测模型、情感分析
-    📊  data_pipeline_eng   → 股票API爬取、数据清洗、存储
-    🖥️  frontend_developer  → 图表仪表盘、实时行情UI
-    🏗️  backend_architect   → 数据API、用户认证、报告生成
-    🧪  qa_engineer         → 数据准确性测试、API压力测试
-
-  Claude 自动调度每个 Agent。
-```
-
-<h3 align="center">⬇️ 一行命令，搞定。</h3>
+<a id="quickstart"></a>
+## ⚡ 快速开始
 
 ```bash
 npm i -g agentcrow
-agentcrow init
+agentcrow init --global
 ```
 
-<p align="center">
-  然后像平时一样运行 <code>claude</code> 就行。剩下的交给 AgentCrow。<br>
-  <b>macOS · Linux · Windows</b>
-</p>
+就这样。两条命令。从现在开始：
+- 复杂提示 → Claude分解为任务 → 生成子代理
+- 每个子代理 → AgentCrow的Hook拦截 → 注入专家人格
+- 子代理以专家身份工作，而非通用助手
+
+> [!TIP]
+> 英语用户: `agentcrow init --global --lang en`
+> 한국어: `agentcrow init --global --lang ko`
 
 ---
 
-## 👀 Before / After
+<a id="how-it-works"></a>
+## ⚙️ 工作原理
+
+```
+你的提示: "构建一个带认证、测试和文档的Todo应用"
+                    │
+                    ▼
+  Claude分解为4个任务
+                    │
+                    ▼
+  Claude调用Agent tool:
+    { name: "qa_engineer", prompt: "编写E2E测试" }
+                    │
+                    ▼
+  ┌─────────────────────────────────────────┐
+  │  PreToolUse Hook（自动）                │
+  │                                         │
+  │  agentcrow-inject.sh → agentcrow inject │
+  │    1. 加载catalog-index.json（~5ms）    │
+  │    2. 匹配"qa_engineer" → 精确匹配     │
+  │    3. 加载QA工程师人格                  │
+  │    4. 通过updatedInput前置到提示词      │
+  └─────────────────────────────────────────┘
+                    │
+                    ▼
+  子代理带完整人格启动:
+    <AGENTCROW_PERSONA>
+    You are QA Engineer — test specialist
+    ## Identity
+    Treats 'it probably works' as a personal insult.
+    ## MUST
+    - Test every public function
+    - Cover happy path, edge case, error path
+    ## MUST NOT
+    - Never test implementation details
+    - Never use sleep for async waits
+    ## Deliverables
+    - Unit tests, Integration tests, E2E tests
+    </AGENTCROW_PERSONA>
+
+    Write E2E tests    ← 原始提示词保留
+```
+
+### 三种匹配策略
+
+| 优先级 | 策略 | 示例 |
+|--------|------|------|
+| 1 | 名称精确匹配 | `name: "qa_engineer"` → QA Engineer |
+| 2 | 子代理类型匹配 | `subagent_type: "security_auditor"` → Security Auditor |
+| 3 | 关键词 + 同义词模糊匹配 | `"kubernetes helm deploy"` → DevOps Automator |
+
+模糊匹配使用**同义词映射表**（50+条目）和**历史学习** — 你常用的代理会获得更高的匹配优先级。
+
+内置Claude类型（`Explore`、`Plan`、`general-purpose`）不会被拦截。
+
+---
+
+## 👀 使用前 / 使用后
 
 <table>
 <tr>
 <td width="50%">
 
-**❌ 没有 AgentCrow**
+**❌ 没有AgentCrow**
 ```
-你: 做一个 Dashboard，
-    包含 API、测试和文档。
+Claude生成空白子代理:
+  prompt: "为认证编写测试"
 
-Claude:（一个 Agent 干所有事）
-        - 读所有文件
-        - 写所有代码
-        - 跑所有测试
-        - 写所有文档
-        = 一个上下文窗口
-        = 忘掉前面的工作
-        = 10 分钟以上
+  结果:
+  - 通用测试文件
+  - 没有AAA结构
+  - 跳过边界情况
+  - 没有覆盖率目标
+  - 15分钟的平庸输出
 ```
 
 </td>
 <td width="50%">
 
-**✅ 使用 AgentCrow**
+**✅ 使用AgentCrow**
 ```
-你: 同样的 prompt
+AgentCrow注入QA人格:
+  prompt: <AGENTCROW_PERSONA>
+    MUST: 测试每个公共函数
+    MUST NOT: 不测试实现细节
+    Deliverables: 单元 + 集成 + E2E
+  </AGENTCROW_PERSONA>
+  为认证编写测试
 
-AgentCrow 自动调度:
-  @ui_designer     → 布局
-  @frontend_dev    → React 代码
-  @backend_arch    → API
-  @qa_engineer     → 测试
-  @tech_writer     → 文档
-
-  = 并行 Agent
-  = 各自专注擅长领域
-  = 更好的结果
+  结果:
+  - AAA结构的测试
+  - 覆盖正常路径 + 边界 + 错误
+  - 包含覆盖率报告
+  - 生成CI配置
 ```
 
 </td>
@@ -113,124 +194,156 @@ AgentCrow 自动调度:
 
 ---
 
-<a id="install"></a>
-## ⚡ 安装
-
-```bash
-npm i -g agentcrow
-agentcrow init
-```
-
-就这么简单。它做两件事：
-
-**首次运行** — 将 Agent 下载到 `~/.agentcrow/`（全局存储，所有项目共享）
-
-**每次运行** — 将 AgentCrow 部分合并到 `.claude/CLAUDE.md`（你现有的规则保持不变）
-
-> [!NOTE]
-> Agent 全局存储在 `~/.agentcrow/`。第二个项目开始无需下载，即时完成。
-
-> [!TIP]
-> 已经有 CLAUDE.md？AgentCrow 只会**追加**自己的部分 — 你现有的规则不会被修改。
-
-<a id="how-it-works"></a>
-## ⚙️ 工作原理
-
-```
-  ┌─────────────────────────────────────┐
-  │  Your prompt                        │
-  │           ↓                         │
-  │  ┌────────────────────────────┐     │
-  │  │ CLAUDE.md reads agent list │     │
-  │  │ Claude decomposes prompt   │     │
-  │  │ Dispatches Agent tool      │     │
-  │  │ Each agent works in scope  │     │
-  │  └────────────────────────────┘     │
-  │           ↓                         │
-  │  Files created, tests written,      │
-  │  docs generated — by specialists    │
-  └─────────────────────────────────────┘
-```
-
-1. **在已初始化 AgentCrow 的项目中运行 `claude`**
-2. **输入一个复杂的 prompt**
-3. **Claude 读取 CLAUDE.md** — 获取 Agent 列表和调度规则
-4. **Claude 分解任务** — 将 prompt 拆分为多个专注的子任务
-5. **Claude 调度 Agent** — 通过 Agent 工具生成子 Agent
-6. **每个 Agent 各司其职** — 在自己的专业领域内工作
-
-不需要 API Key。不需要服务器。只需 Claude Code + CLAUDE.md。
-
-<a id="agents"></a>
-## 🤖 9 个内置 Agent + 外部 Agent
-
-| 部门 | 示例 |
-|:---------|:---------|
-| **Engineering** | frontend_developer, backend_architect, ai_engineer, sre |
-| **Game Dev** | game_designer, level_designer, unreal, unity, godot |
-| **Marketing** | content_strategist, seo_specialist, social_media |
-| **Testing** | test_automation, performance_tester |
-| **Design** | ui_designer, ux_researcher, brand_guardian |
-| **Builtin** | qa_engineer, korean_tech_writer, security_auditor |
-| + more | sales, support, product, strategy, spatial-computing... |
-
 <a id="commands"></a>
 ## 🔧 命令
 
 ```bash
-agentcrow init                # 设置 Agent + CLAUDE.md（当前项目）
-agentcrow init --global       # 一次设置，所有项目生效
-agentcrow init --lang ko      # 韩文模板
-agentcrow init --max 5        # 每次调度最大 Agent 数
-agentcrow status              # 状态检查（项目 + 全局）
-agentcrow off [--global]      # 临时禁用
-agentcrow on [--global]       # 重新启用
-agentcrow agents              # 列出所有 Agent
-agentcrow agents search ai    # 按关键词搜索
-agentcrow compose "prompt"    # 预览分解（dry run）
+# 安装 & 设置
+agentcrow init [--global] [--lang en|ko] [--max 5] [--mcp]
+
+# 生命周期
+agentcrow on / off [--global]   # 启用/禁用
+agentcrow status                # 检查安装状态
+agentcrow doctor                # 12项诊断
+agentcrow update                # 获取最新代理
+agentcrow uninstall             # 完全卸载
+
+# 代理管理
+agentcrow agents                # 列出全部150个代理
+agentcrow agents search <query> # 关键词搜索
+agentcrow add <path|url>        # 添加自定义代理（.md/.yaml）
+agentcrow remove <role>         # 删除自定义代理
+
+# 检查 & 调试
+agentcrow compose <prompt>      # 预览分解（模拟运行）
+agentcrow stats                 # 调度历史 & 分析
+agentcrow inject                # Hook处理器（内部）
+
+# MCP服务器
+agentcrow serve                 # 启动MCP服务器（stdio）
 ```
 
-## 💡 Prompt 示例
+---
+
+<a id="agents"></a>
+## 🤖 150个代理
+
+### 14个手工打造的内置代理
+
+每个内置代理都有个性、沟通风格、思维模型、MUST/MUST NOT规则、交付物和成功指标。
+
+| 代理 | 功能 | 核心规则 |
+|------|------|---------|
+| **Frontend Developer** | React/Next.js、Core Web Vitals、WCAG AA | "组合优于继承，永远如此" |
+| **Backend Architect** | API设计、认证、数据库、缓存 | "没有迁移脚本绝不上线" |
+| **QA Engineer** | 单元/集成/E2E测试、覆盖率 | "未经测试的代码就是有缺陷的代码" |
+| **Security Auditor** | OWASP、CVSS评分、每个发现都有PoC | "永远不说'代码是安全的'" |
+| **UI Designer** | 设计系统、token、间距比例 | "不在token系统中的就不存在" |
+| **DevOps Automator** | CI/CD、Docker、K8s、密钥管理 | "生产环境禁止使用:latest标签" |
+| **AI Engineer** | LLM集成、RAG、提示词优化 | "LLM是需要护栏的不可靠组件" |
+| **Refactoring Specialist** | 代码异味、Fowler目录、绞杀者模式 | "没有测试就不重构" |
+| **Complexity Critic** | 圈复杂度、YAGNI执行 | "没有证据就不说复杂" |
+| **Data Pipeline Engineer** | ETL、幂等性、Schema迁移 | "幂等性不可妥协" |
+| **Technical Writer** | API文档、指南、README | "每一句话都要有存在的价值" |
+| **Translator** | i18n、locale文件、技术翻译 | "永远不翻译代码标识符" |
+| **Compose Meta-Reviewer** | 审核代理团队组成 | "分数低于70则阻止执行" |
+| **Unreal GAS Specialist** | GameplayAbilitySystem、UE5 C++ | "不在GameplayAbilities中做伤害计算" |
+
+### 136个外部代理（13个部门）
+
+来自[agency-agents](https://github.com/msitarzewski/agency-agents): engineering、game-dev、design、marketing、testing、sales、support、product、strategy、spatial-computing、academic、paid-media、project-management。
+
+---
+
+## ➕ 自定义代理
+
+```bash
+agentcrow add ./my-agent.yaml           # 本地文件
+agentcrow add https://example.com/a.md  # URL
+agentcrow remove my_agent               # 删除（仅限自定义）
+```
+
+---
+
+## 🔌 MCP服务器（可选）
+
+```bash
+agentcrow init --global --mcp
+```
+
+为Claude Code添加3个工具: `agentcrow_match`、`agentcrow_search`、`agentcrow_list`。Claude可以通过编程方式查询代理目录。
+
+---
+
+## 📊 统计
+
+```bash
+agentcrow stats
+```
 
 ```
-做一个AI股票分析工具，能爬取数据、分析趋势、生成报告
-→ ai_engineer + data_pipeline_engineer + frontend_developer + backend_architect
+  🐦 AgentCrow Stats
 
-在线教育平台，支持视频课程、测验和证书
-→ frontend_developer + backend_architect + ai_engineer + qa_engineer
+  Match Quality
+    exact  38 (81%)    ← 名称直接匹配
+    fuzzy   7 (15%)    ← 关键词 + 同义词匹配
+    none    2 (4%)     ← 无匹配，直通
 
-社区论坛系统，支持帖子、评论、搜索和用户等级
-→ frontend_developer + backend_architect + ui_designer + qa_engineer
+  Top Agents
+    frontend_developer     12 ████████████
+    qa_engineer             8 ████████
+    backend_architect       6 ██████
 ```
 
-简单的 prompt 会正常运行，AgentCrow 只在多任务请求时才会介入。
+---
 
-## 🛡️ 零开销
+## 🛡️ 安全性 & 性能
 
 | | |
 |:---|:---|
-| 🟢 复杂 prompt | 自动拆分为多个 Agent |
-| 🔵 简单 prompt | 正常运行，不启动 Agent |
-| 🔴 `agentcrow off` | 完全禁用 |
+| Hook延迟 | 每次Agent tool调用**< 50ms** |
+| Token开销 | 每次人格注入**约350 tokens** |
+| 失败开放 | 索引或二进制文件缺失 → 直通（不中断） |
+| Claude内置类型 | `Explore`、`Plan`、`general-purpose` → 不拦截 |
+| 简单提示 | 不调度代理，零开销 |
+| `agentcrow off` | 完全禁用，全部备份 |
 
-> [!IMPORTANT]
-> AgentCrow 只触碰 `.claude/CLAUDE.md` 和 `.claude/agents/`。没有依赖，没有后台进程。`agentcrow off` 会备份并完全移除两者。
+---
+
+## 🏗️ 架构
+
+```
+~/.agentcrow/
+  ├── agents/
+  │   ├── builtin/          14 YAML（手工打造）
+  │   ├── external/         136 MD（agency-agents）
+  │   └── md/               150 统一 .md 文件
+  ├── catalog-index.json    预构建，查询 <5ms
+  └── history.json          调度记录（最近1000条）
+
+~/.claude/
+  ├── settings.json         SessionStart + PreToolUse hooks
+  └── hooks/
+      └── agentcrow-inject.sh
+```
+
+---
 
 ## 🤝 贡献
 
 ```bash
-git clone --recursive https://github.com/jee599/agentcrow.git
-cd agentcrow && npm install && npm test  # 118 tests
+git clone https://github.com/jee599/agentcrow.git
+cd agentcrow && npm install && npm test  # 187 tests
 ```
 
 ## 📜 许可证
 
-MIT — 外部 Agent 来源：[agency-agents](https://github.com/msitarzewski/agency-agents)。
+MIT
 
 ---
 
 <p align="center">
-  <b>🐦 一个 Prompt。多个 Agent。零配置。</b>
+  <b>🐦 每个子代理都值得拥有一个人格。</b>
 </p>
 
 <p align="center">

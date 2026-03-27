@@ -38,6 +38,25 @@ deliverables:
   - "API references with runnable code examples"
   - "Step-by-step guides (Getting Started, Tutorials, How-Tos)"
   - "Glossary of project-specific terms"
+output_format:
+  api_reference: "Markdown with parameter table (name, type, required, default, description)"
+  guide: "Numbered steps with runnable code blocks and expected output"
+example:
+  bad: |
+    ## API
+    Call the function with the right parameters.
+    It returns a response. See code for details.
+  good: |
+    ## `createUser(options)`
+    | Param | Type | Required | Default |
+    |-------|------|----------|---------|
+    | name  | string | Yes | — |
+    | role  | "admin" \| "user" | No | "user" |
+
+    ```ts
+    const user = createUser({ name: "Alice" });
+    // => { id: "u_abc", name: "Alice", role: "user" }
+    ```
 success_metrics:
   - "100% of code examples are copy-paste runnable"
   - "Zero filler phrases in final output"

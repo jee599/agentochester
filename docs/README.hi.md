@@ -5,69 +5,151 @@
 </h1>
 
 <h3 align="center">
-  एक प्रॉम्प्ट दो। AgentCrow उसे तोड़कर स्पेशलिस्ट एजेंट्स को पैरेलल में भेजता है। 9 बिल्ट-इन + एक्सटर्नल एजेंट्स।<br>
-  <code>agentcrow init</code> → <code>claude</code> → ऑटो-डिस्पैच।
+  Claude द्वारा बनाए गए हर सबएजेंट को एक विशेषज्ञ पर्सोना मिलता है — स्वचालित रूप से।<br>
+  150 एजेंट। Hook द्वारा लागू। शून्य कॉन्फ़िगरेशन।
 </h3>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/agentcrow"><img src="https://img.shields.io/npm/v/agentcrow?style=flat-square&color=violet" alt="npm" /></a>
-  <img src="https://img.shields.io/badge/agents-9_builtin-brightgreen?style=flat-square" alt="Agents" />
-  <img src="https://img.shields.io/badge/tests-118_passing-brightgreen?style=flat-square" alt="Tests" />
+  <img src="https://img.shields.io/badge/agents-150-brightgreen?style=flat-square" alt="Agents" />
+  <img src="https://img.shields.io/badge/tests-187_passing-brightgreen?style=flat-square" alt="Tests" />
+  <img src="https://img.shields.io/badge/hook-PreToolUse-blue?style=flat-square" alt="Hook" />
   <a href="LICENSE"><img src="https://img.shields.io/github/license/jee599/agentcrow?style=flat-square" alt="License" /></a>
 </p>
 
 <p align="center">
+  <a href="#the-problem">समस्या</a> •
+  <a href="#quickstart">त्वरित शुरुआत</a> •
+  <a href="#how-it-works">कैसे काम करता है</a> •
+  <a href="#commands">कमांड</a> •
+  <a href="#agents">एजेंट</a> •
   <a href="../README.md">English</a> •
   <a href="README.ko.md">한국어</a> •
-  <a href="README.ja.md">日本語</a> •
-  <a href="README.zh.md">中文</a> •
-  <a href="README.es.md">Español</a> •
-  <a href="README.pt.md">Português</a> •
-  <a href="README.de.md">Deutsch</a> •
-  <a href="README.fr.md">Français</a> •
-  <a href="README.ru.md">Русский</a> •
-  हिन्दी •
-  <a href="README.tr.md">Türkçe</a> •
-  <a href="README.vi.md">Tiếng Việt</a>
+  <a href="README.ja.md">日本語</a>
 </p>
 
 ---
 
-<p align="center">
-  <img src="../assets/demo.gif" alt="AgentCrow demo — auto-dispatching agents" width="720" />
-</p>
+<a id="the-problem"></a>
+## समस्या
+
+जब Claude Code एक सबएजेंट बनाता है, तो वह एक **खाली जनरलिस्ट** होता है। कोई विशेषज्ञता नहीं, कोई नियम नहीं, कोई व्यक्तित्व नहीं। वह आपका काम करता है, लेकिन *जैसे एक विशेषज्ञ करता* वैसे नहीं।
+
+```
+आप: "Auth, tests और docs के साथ एक SaaS बनाओ"
+
+Claude 4 सबएजेंट बनाता है:
+  Agent 1: (खाली) → auth कोड लिखता है
+  Agent 2: (खाली) → tests लिखता है
+  Agent 3: (खाली) → docs लिखता है
+  Agent 4: (खाली) → UI लिखता है
+
+  = सामान्य आउटपुट
+  = कोई कोडिंग मानक नहीं
+  = कोई विशेषज्ञ ज्ञान नहीं
+```
+
+AgentCrow इसे ठीक करता है। एक **PreToolUse Hook** हर Agent tool कॉल को इंटरसेप्ट करता है और सही विशेषज्ञ पर्सोना इंजेक्ट करता है — सबएजेंट शुरू होने से पहले:
+
+```
+आप: वही प्रॉम्प्ट
+
+AgentCrow हर Agent tool कॉल को इंटरसेप्ट करता है:
+  Agent 1: → 🏗️ Backend Architect पर्सोना इंजेक्ट किया
+            "डेटा इंटीग्रिटी के प्रति अत्यधिक सतर्क। माइग्रेशन के बिना कभी डिप्लॉय नहीं करता।"
+  Agent 2: → 🧪 QA Engineer पर्सोना इंजेक्ट किया
+            "'शायद काम करता है' को व्यक्तिगत अपमान मानता है।"
+  Agent 3: → 📝 Technical Writer पर्सोना इंजेक्ट किया
+            "हर वाक्य अपनी जगह कमाता है।"
+  Agent 4: → 🖥️ Frontend Developer पर्सोना इंजेक्ट किया
+            "इनहेरिटेंस से पहले कंपोज़िशन, हमेशा।"
+
+  = विशेषज्ञ-स्तरीय आउटपुट
+  = MUST/MUST NOT नियम लागू
+  = ठोस डिलीवरेबल्स परिभाषित
+```
+
+**कोई अन्य टूल यह नहीं करता।** ECC (100K⭐) नहीं, agency-agents (59K⭐) नहीं, wshobson (31K⭐) भी नहीं। AgentCrow एकमात्र टूल है जो Hook स्तर पर पर्सोना इंजेक्शन लागू करता है।
 
 ---
 
-```
-  आप:   "एक फ़ूड डिलीवरी ऐप बनाओ ट्रैकिंग और पेमेंट के साथ"
-
-  AgentCrow डीकंपोज़ करता है → 5 एजेंट्स:
-
-    🖥️  frontend_developer  → रेस्टोरेंट लिस्टिंग, कार्ट UI, ऑर्डर ट्रैकिंग
-    🏗️  backend_architect   → ऑर्डर API, पेमेंट इंटीग्रेशन, डेटाबेस
-    🗺️  ui_designer         → मैप व्यू, डिलीवरी ट्रैकिंग इंटरफ़ेस
-    🧪  qa_engineer         → ऑर्डर फ़्लो E2E टेस्ट, पेमेंट edge cases
-    📝  technical_writer    → API डॉक्यूमेंटेशन, इंटीग्रेशन गाइड
-
-  आपने एजेंट्स नहीं चुने। AgentCrow ने चुने।
-```
-
-<h3 align="center">⬇️ एक लाइन। बस।</h3>
+<a id="quickstart"></a>
+## ⚡ त्वरित शुरुआत
 
 ```bash
 npm i -g agentcrow
-agentcrow init
+agentcrow init --global
 ```
 
-<p align="center">
-  फिर हमेशा की तरह <code>claude</code> चलाओ। बाकी AgentCrow सँभाल लेगा।<br>
-  <b>macOS · Linux · Windows</b>
-</p>
+बस इतना ही। दो कमांड। अब से:
+- जटिल प्रॉम्प्ट → Claude कार्यों में विभाजित करता है → सबएजेंट बनाता है
+- हर सबएजेंट → AgentCrow का Hook इंटरसेप्ट करता है → विशेषज्ञ पर्सोना इंजेक्ट करता है
+- सबएजेंट जनरलिस्ट के बजाय विशेषज्ञ के रूप में काम करता है
+
+> [!TIP]
+> अंग्रेज़ी उपयोगकर्ता: `agentcrow init --global --lang en`
+> 한국어: `agentcrow init --global --lang ko`
 
 ---
 
-## 👀 Before / After
+<a id="how-it-works"></a>
+## ⚙️ कैसे काम करता है
+
+```
+आपका प्रॉम्प्ट: "Auth, tests और docs के साथ एक Todo ऐप बनाओ"
+                    │
+                    ▼
+  Claude 4 कार्यों में विभाजित करता है
+                    │
+                    ▼
+  Claude Agent tool कॉल करता है:
+    { name: "qa_engineer", prompt: "E2E tests लिखो" }
+                    │
+                    ▼
+  ┌─────────────────────────────────────────┐
+  │  PreToolUse Hook (स्वचालित)             │
+  │                                         │
+  │  agentcrow-inject.sh → agentcrow inject │
+  │    1. catalog-index.json लोड (~5ms)     │
+  │    2. "qa_engineer" खोजें → सटीक मैच   │
+  │    3. QA Engineer पर्सोना लोड           │
+  │    4. updatedInput से प्रॉम्प्ट में जोड़ें│
+  └─────────────────────────────────────────┘
+                    │
+                    ▼
+  सबएजेंट पूर्ण पर्सोना के साथ शुरू होता है:
+    <AGENTCROW_PERSONA>
+    You are QA Engineer — test specialist
+    ## Identity
+    Treats 'it probably works' as a personal insult.
+    ## MUST
+    - Test every public function
+    - Cover happy path, edge case, error path
+    ## MUST NOT
+    - Never test implementation details
+    - Never use sleep for async waits
+    ## Deliverables
+    - Unit tests, Integration tests, E2E tests
+    </AGENTCROW_PERSONA>
+
+    Write E2E tests    ← मूल प्रॉम्प्ट सुरक्षित
+```
+
+### तीन मैचिंग रणनीतियाँ
+
+| प्राथमिकता | रणनीति | उदाहरण |
+|-----------|--------|--------|
+| 1 | नाम से सटीक मैच | `name: "qa_engineer"` → QA Engineer |
+| 2 | सबएजेंट टाइप मैच | `subagent_type: "security_auditor"` → Security Auditor |
+| 3 | कीवर्ड + समानार्थी फ़ज़ी | `"kubernetes helm deploy"` → DevOps Automator |
+
+फ़ज़ी मैचिंग एक **समानार्थी मैप** (50+ एंट्री) और **हिस्ट्री लर्निंग** का उपयोग करता है — बार-बार उपयोग किए जाने वाले एजेंट को मैचिंग में अधिक प्राथमिकता मिलती है।
+
+बिल्ट-इन Claude टाइप (`Explore`, `Plan`, `general-purpose`) कभी इंटरसेप्ट नहीं होते।
+
+---
+
+## 👀 पहले / बाद
 
 <table>
 <tr>
@@ -75,17 +157,15 @@ agentcrow init
 
 **❌ AgentCrow के बिना**
 ```
-आप: एक डैशबोर्ड बनाओ
-    API, टेस्ट और डॉक्स के साथ
+Claude खाली सबएजेंट बनाता है:
+  prompt: "Auth के लिए tests लिखो"
 
-Claude: (एक एजेंट सब कुछ करता है)
-        - सारी फ़ाइलें पढ़ता है
-        - सारा कोड लिखता है
-        - सारे टेस्ट चलाता है
-        - सारे डॉक्स लिखता है
-        = एक कॉन्टेक्स्ट विंडो
-        = पहले का काम भूल जाता है
-        = 10+ मिनट
+  परिणाम:
+  - सामान्य टेस्ट फ़ाइल
+  - AAA स्ट्रक्चर नहीं
+  - एज केसेज़ छोड़ दिए
+  - कवरेज लक्ष्य नहीं
+  - 15 मिनट का औसत आउटपुट
 ```
 
 </td>
@@ -93,18 +173,19 @@ Claude: (एक एजेंट सब कुछ करता है)
 
 **✅ AgentCrow के साथ**
 ```
-आप: वही प्रॉम्प्ट
+AgentCrow QA पर्सोना इंजेक्ट करता है:
+  prompt: <AGENTCROW_PERSONA>
+    MUST: हर पब्लिक फ़ंक्शन टेस्ट करो
+    MUST NOT: इम्प्लीमेंटेशन डिटेल्स टेस्ट मत करो
+    Deliverables: यूनिट + इंटीग्रेशन + E2E
+  </AGENTCROW_PERSONA>
+  Auth के लिए tests लिखो
 
-AgentCrow ऑटो-डिस्पैच करता है:
-  @ui_designer     → लेआउट
-  @frontend_dev    → React कोड
-  @backend_arch    → API
-  @qa_engineer     → टेस्ट
-  @tech_writer     → डॉक्यूमेंटेशन
-
-  = पैरेलल एजेंट्स
-  = हर एक फ़ोकस्ड
-  = बेहतर रिज़ल्ट
+  परिणाम:
+  - AAA स्ट्रक्चर वाले टेस्ट
+  - हैप्पी पाथ + एज + एरर कवर
+  - कवरेज रिपोर्ट शामिल
+  - CI कॉन्फ़िग जेनरेट किया
 ```
 
 </td>
@@ -113,124 +194,156 @@ AgentCrow ऑटो-डिस्पैच करता है:
 
 ---
 
-<a id="install"></a>
-## ⚡ इंस्टॉल
+<a id="commands"></a>
+## 🔧 कमांड
 
 ```bash
-npm i -g agentcrow
-agentcrow init
+# इंस्टॉल और सेटअप
+agentcrow init [--global] [--lang en|ko] [--max 5] [--mcp]
+
+# लाइफसाइकल
+agentcrow on / off [--global]   # सक्षम/अक्षम
+agentcrow status                # इंस्टॉलेशन जाँचें
+agentcrow doctor                # 12-पॉइंट डायग्नोस्टिक
+agentcrow update                # नवीनतम एजेंट प्राप्त करें
+agentcrow uninstall             # साफ़ अनइंस्टॉल
+
+# एजेंट प्रबंधन
+agentcrow agents                # सभी 150 एजेंट सूचीबद्ध करें
+agentcrow agents search <query> # कीवर्ड खोज
+agentcrow add <path|url>        # कस्टम एजेंट जोड़ें (.md/.yaml)
+agentcrow remove <role>         # कस्टम एजेंट हटाएँ
+
+# निरीक्षण और डिबग
+agentcrow compose <prompt>      # डिकंपोज़िशन का प्रीव्यू (dry run)
+agentcrow stats                 # डिस्पैच हिस्ट्री और एनालिटिक्स
+agentcrow inject                # Hook हैंडलर (आंतरिक)
+
+# MCP सर्वर
+agentcrow serve                 # MCP सर्वर शुरू करें (stdio)
 ```
 
-बस इतना। ये दो काम करता है:
-
-**पहली बार** — एजेंट्स `~/.agentcrow/` में डाउनलोड होते हैं (ग्लोबल, सभी प्रोजेक्ट्स में शेयर्ड)
-
-**हर बार** — AgentCrow सेक्शन `.claude/CLAUDE.md` में मर्ज होता है (आपके मौजूदा रूल्स बरकरार रहते हैं)
-
-> [!NOTE]
-> एजेंट्स ग्लोबली `~/.agentcrow/` में स्टोर होते हैं। दूसरे प्रोजेक्ट से = इंस्टैंट, कोई डाउनलोड नहीं।
-
-> [!TIP]
-> पहले से CLAUDE.md है? AgentCrow अपना सेक्शन **जोड़ता** है — आपके मौजूदा रूल्स को छूता नहीं।
-
-<a id="how-it-works"></a>
-## ⚙️ कैसे काम करता है
-
-```
-  ┌─────────────────────────────────────┐
-  │  Your prompt                        │
-  │           ↓                         │
-  │  ┌────────────────────────────┐     │
-  │  │ CLAUDE.md reads agent list │     │
-  │  │ Claude decomposes prompt   │     │
-  │  │ Dispatches Agent tool      │     │
-  │  │ Each agent works in scope  │     │
-  │  └────────────────────────────┘     │
-  │           ↓                         │
-  │  Files created, tests written,      │
-  │  docs generated — by specialists    │
-  └─────────────────────────────────────┘
-```
-
-1. **AgentCrow इनिशियलाइज़्ड प्रोजेक्ट में `claude` चलाओ**
-2. **कोई भी कॉम्प्लेक्स प्रॉम्प्ट टाइप करो**
-3. **Claude CLAUDE.md पढ़ता है** — एजेंट लिस्ट और डिस्पैच रूल्स पहचानता है
-4. **Claude डीकंपोज़ करता है** — प्रॉम्प्ट को फ़ोकस्ड टास्क्स में बाँटता है
-5. **Claude डिस्पैच करता है** — Agent टूल से सब-एजेंट्स बनाता है
-6. **हर एजेंट काम करता है** — अपनी एक्सपर्टीज़ में
-
-कोई API key नहीं। कोई सर्वर नहीं। बस Claude Code + CLAUDE.md।
+---
 
 <a id="agents"></a>
-## 🤖 9 बिल्ट-इन एजेंट्स + एक्सटर्नल एजेंट्स
+## 🤖 150 एजेंट
 
-| डिवीज़न | उदाहरण |
-|:---------|:---------|
-| **Engineering** | frontend_developer, backend_architect, ai_engineer, sre |
-| **Game Dev** | game_designer, level_designer, unreal, unity, godot |
-| **Marketing** | content_strategist, seo_specialist, social_media |
-| **Testing** | test_automation, performance_tester |
-| **Design** | ui_designer, ux_researcher, brand_guardian |
-| **Builtin** | qa_engineer, korean_tech_writer, security_auditor |
-| + more | sales, support, product, strategy, spatial-computing... |
+### 14 हाथ से तैयार बिल्ट-इन एजेंट
 
-<a id="commands"></a>
-## 🔧 कमांड्स
+हर बिल्ट-इन एजेंट में व्यक्तित्व, संवाद शैली, सोच का मॉडल, MUST/MUST NOT नियम, डिलीवरेबल्स और सफलता मेट्रिक्स हैं।
+
+| एजेंट | कार्य | मुख्य नियम |
+|--------|------|-----------|
+| **Frontend Developer** | React/Next.js, Core Web Vitals, WCAG AA | "इनहेरिटेंस से पहले कंपोज़िशन, हमेशा" |
+| **Backend Architect** | API डिज़ाइन, auth, डेटाबेस, कैशिंग | "माइग्रेशन के बिना कभी डिप्लॉय नहीं" |
+| **QA Engineer** | यूनिट/इंटीग्रेशन/E2E टेस्ट, कवरेज | "बिना टेस्ट कोड टूटा हुआ कोड है" |
+| **Security Auditor** | OWASP, CVSS स्कोरिंग, हर खोज के लिए PoC | "कभी नहीं कहता 'कोड सुरक्षित है'" |
+| **UI Designer** | डिज़ाइन सिस्टम, टोकन, स्पेसिंग स्केल | "अगर टोकन सिस्टम में नहीं है, तो अस्तित्व में नहीं है" |
+| **DevOps Automator** | CI/CD, Docker, K8s, सीक्रेट्स मैनेजमेंट | "प्रोडक्शन में :latest टैग नहीं" |
+| **AI Engineer** | LLM इंटीग्रेशन, RAG, प्रॉम्प्ट ऑप्टिमाइज़ेशन | "LLM अविश्वसनीय कंपोनेंट हैं जिन्हें गार्डरेल चाहिए" |
+| **Refactoring Specialist** | कोड स्मेल्स, Fowler कैटलॉग, strangler fig | "बिना टेस्ट कभी रिफ़ैक्टर नहीं" |
+| **Complexity Critic** | साइक्लोमैटिक कॉम्प्लेक्सिटी, YAGNI लागू | "बिना सबूत कभी कॉम्प्लेक्स नहीं कहना" |
+| **Data Pipeline Engineer** | ETL, इडेम्पोटेंसी, स्कीमा माइग्रेशन | "इडेम्पोटेंसी पर कोई समझौता नहीं" |
+| **Technical Writer** | API डॉक्स, गाइड, READMEs | "हर वाक्य अपनी जगह कमाता है" |
+| **Translator** | i18n, locale फ़ाइलें, तकनीकी अनुवाद | "कोड आइडेंटिफ़ायर कभी अनुवाद नहीं" |
+| **Compose Meta-Reviewer** | एजेंट टीम कंपोज़िशन का ऑडिट | "स्कोर 70 से नीचे हो तो एक्ज़ीक्यूशन ब्लॉक" |
+| **Unreal GAS Specialist** | GameplayAbilitySystem, UE5 C++ | "GameplayAbilities में डैमेज कैलकुलेशन नहीं" |
+
+### 136 बाहरी एजेंट (13 डिवीज़न)
+
+[agency-agents](https://github.com/msitarzewski/agency-agents) से: engineering, game-dev, design, marketing, testing, sales, support, product, strategy, spatial-computing, academic, paid-media, project-management.
+
+---
+
+## ➕ कस्टम एजेंट
 
 ```bash
-agentcrow init                # एजेंट्स + CLAUDE.md सेटअप (मौजूदा प्रोजेक्ट)
-agentcrow init --global       # एक बार सेटअप, सभी प्रोजेक्ट्स में काम करे
-agentcrow init --lang ko      # कोरियन टेम्पलेट
-agentcrow init --max 5        # मैक्सिमम एक साथ एजेंट्स
-agentcrow status              # स्टेटस चेक करो (प्रोजेक्ट + ग्लोबल)
-agentcrow off [--global]      # अस्थायी रूप से बंद करो
-agentcrow on [--global]       # फिर से चालू करो
-agentcrow agents              # सभी एजेंट्स की लिस्ट
-agentcrow agents search ai    # कीवर्ड से खोजो
-agentcrow compose "prompt"    # डीकंपोज़िशन प्रीव्यू (dry run)
+agentcrow add ./my-agent.yaml           # लोकल फ़ाइल
+agentcrow add https://example.com/a.md  # URL
+agentcrow remove my_agent               # हटाएँ (केवल कस्टम)
 ```
 
-## 💡 प्रॉम्प्ट उदाहरण
+---
 
-```
-एक फ़ूड डिलीवरी ऐप बनाओ ट्रैकिंग और पेमेंट के साथ
-→ frontend_developer + backend_architect + ui_designer + qa_engineer
+## 🔌 MCP सर्वर (वैकल्पिक)
 
-ऑनलाइन शिक्षा प्लेटफ़ॉर्म बनाओ वीडियो कोर्स, क्विज़ और सर्टिफ़िकेट के साथ
-→ frontend_developer + backend_architect + devops_automator + qa_engineer
-
-इन्वेंटरी मैनेजमेंट सिस्टम बनाओ रिपोर्ट्स और अलर्ट्स के साथ
-→ backend_architect + frontend_developer + qa_engineer + technical_writer
+```bash
+agentcrow init --global --mcp
 ```
 
-सिंपल प्रॉम्प्ट नॉर्मली चलते हैं। AgentCrow सिर्फ़ मल्टी-टास्क रिक्वेस्ट में एक्टिवेट होता है।
+Claude Code में 3 टूल जोड़ता है: `agentcrow_match`, `agentcrow_search`, `agentcrow_list`। Claude प्रोग्रामेटिक रूप से एजेंट कैटलॉग क्वेरी कर सकता है।
 
-## 🛡️ ज़ीरो ओवरहेड
+---
+
+## 📊 आँकड़े
+
+```bash
+agentcrow stats
+```
+
+```
+  🐦 AgentCrow Stats
+
+  Match Quality
+    exact  38 (81%)    ← नाम सीधे मैच हुआ
+    fuzzy   7 (15%)    ← कीवर्ड + समानार्थी मैच
+    none    2 (4%)     ← कोई मैच नहीं, passthrough
+
+  Top Agents
+    frontend_developer     12 ████████████
+    qa_engineer             8 ████████
+    backend_architect       6 ██████
+```
+
+---
+
+## 🛡️ सुरक्षा और प्रदर्शन
 
 | | |
 |:---|:---|
-| 🟢 कॉम्प्लेक्स प्रॉम्प्ट | एजेंट्स में ऑटो-डीकंपोज़ |
-| 🔵 सिंपल प्रॉम्प्ट | नॉर्मली चलता है, कोई एजेंट नहीं |
-| 🔴 `agentcrow off` | पूरी तरह बंद |
+| Hook लेटेंसी | प्रति Agent tool कॉल **< 50ms** |
+| टोकन ओवरहेड | प्रति पर्सोना इंजेक्शन **~350 टोकन** |
+| Fail-open | इंडेक्स या बाइनरी गायब → passthrough (कोई ब्रेक नहीं) |
+| Claude बिल्ट-इन | `Explore`, `Plan`, `general-purpose` → कभी इंटरसेप्ट नहीं |
+| सरल प्रॉम्प्ट | कोई एजेंट डिस्पैच नहीं, शून्य ओवरहेड |
+| `agentcrow off` | पूरी तरह अक्षम, सब बैकअप |
 
-> [!IMPORTANT]
-> AgentCrow सिर्फ़ `.claude/CLAUDE.md` और `.claude/agents/` को छूता है। कोई प्रोजेक्ट डिपेंडेंसी नहीं, कोई बैकग्राउंड प्रोसेस नहीं। `agentcrow off` दोनों का बैकअप लेकर साफ़-सुथरा हटाता है।
+---
+
+## 🏗️ आर्किटेक्चर
+
+```
+~/.agentcrow/
+  ├── agents/
+  │   ├── builtin/          14 YAML (हाथ से तैयार)
+  │   ├── external/         136 MD (agency-agents)
+  │   └── md/               150 एकीकृत .md फ़ाइलें
+  ├── catalog-index.json    <5ms लुकअप के लिए प्री-बिल्ट
+  └── history.json          डिस्पैच रिकॉर्ड (अंतिम 1000)
+
+~/.claude/
+  ├── settings.json         SessionStart + PreToolUse hooks
+  └── hooks/
+      └── agentcrow-inject.sh
+```
+
+---
 
 ## 🤝 योगदान
 
 ```bash
-git clone --recursive https://github.com/jee599/agentcrow.git
-cd agentcrow && npm install && npm test  # 118 tests
+git clone https://github.com/jee599/agentcrow.git
+cd agentcrow && npm install && npm test  # 187 tests
 ```
 
 ## 📜 लाइसेंस
 
-MIT — एक्सटर्नल एजेंट्स [agency-agents](https://github.com/msitarzewski/agency-agents) से।
+MIT
 
 ---
 
 <p align="center">
-  <b>🐦 एक प्रॉम्प्ट। कई एजेंट्स। ज़ीरो कॉन्फ़िग।</b>
+  <b>🐦 हर सबएजेंट एक पर्सोना का हक़दार है।</b>
 </p>
 
 <p align="center">

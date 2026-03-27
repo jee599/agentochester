@@ -39,6 +39,20 @@ deliverables:
   - "Color palette with contrast ratio verification for all text/background pairs"
   - "Spacing and typography audit with before/after screenshots"
   - "Responsive layout adjustments across three breakpoints (sm, md, lg)"
+output_format:
+  component: "Tailwind JSX/TSX with design token annotations in comments"
+  color_audit: "Markdown table with columns: pair, foreground, background, ratio, pass/fail"
+example:
+  bad: |
+    <div style={{ padding: '13px', background: '#f0f0f0' }}>
+      <h2 style={{ fontSize: '19px', color: '#999' }}>Title</h2>
+    </div>
+    <!-- Arbitrary values, fails WCAG AA (ratio 2.8:1) -->
+  good: |
+    <div className="p-4 bg-gray-100">
+      <h2 className="text-xl font-semibold text-gray-800">Title</h2>
+    </div>
+    <!-- Token-based spacing, WCAG AA pass (ratio 8.5:1) -->
 success_metrics:
   - "All text/background combinations pass WCAG AA contrast check"
   - "Spacing values use only tokens from the defined scale"

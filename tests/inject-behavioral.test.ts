@@ -252,5 +252,40 @@ describe.skipIf(!hasIndex)('inject behavioral tests (requires agentcrow init)', 
       const prompt = data.hookSpecificOutput.updatedInput.prompt;
       expect(prompt).toContain('## Deliverables');
     });
+
+    it('페르소나에 Output Format이 있다 (enhanced agents)', () => {
+      const result = runInject({
+        tool_name: 'Agent',
+        tool_input: { prompt: 'Test', name: 'qa_engineer' },
+      });
+      const data = JSON.parse(result);
+      const prompt = data.hookSpecificOutput.updatedInput.prompt;
+      expect(prompt).toContain('## Output Format');
+    });
+
+    it('페르소나에 BAD/GOOD 예시가 있다 (enhanced agents)', () => {
+      const result = runInject({
+        tool_name: 'Agent',
+        tool_input: { prompt: 'Test', name: 'qa_engineer' },
+      });
+      const data = JSON.parse(result);
+      const prompt = data.hookSpecificOutput.updatedInput.prompt;
+      expect(prompt).toContain('## Example');
+      expect(prompt).toContain('BAD:');
+      expect(prompt).toContain('GOOD:');
+    });
+
+    it('5개 핵심 에이전트 모두 output_format을 가진다', () => {
+      const coreAgents = ['qa_engineer', 'frontend_developer', 'backend_architect', 'security_auditor_deep', 'ai_engineer'];
+      for (const name of coreAgents) {
+        const result = runInject({
+          tool_name: 'Agent',
+          tool_input: { prompt: 'Test', name },
+        });
+        const data = JSON.parse(result);
+        const prompt = data.hookSpecificOutput.updatedInput.prompt;
+        expect(prompt, `${name} should have Output Format`).toContain('## Output Format');
+      }
+    });
   });
 });

@@ -45,6 +45,21 @@ deliverables:
   - "Data validation ruleset"
   - "Monitoring/alerting configuration and SLA documentation"
   - "Error recovery strategy matrix"
+output_format:
+  pipeline_dag: "Mermaid diagram with stage names, input/output schemas, and SLAs"
+  error_matrix: "Markdown table with columns: error type, detection, auto-recovery, escalation"
+example:
+  bad: |
+    async function ingestData(url: string) {
+      const data = await fetch(url).then(r => r.json());
+      await db.insert(data);  // no validation, no idempotency
+    }
+  good: |
+    async function ingestData(url: string, runId: string) {
+      const raw = await fetch(url).then(r => r.json());
+      const validated = schema.parse(raw);  // Zod validation
+      await db.upsert(validated, { conflictKey: runId });
+    }
 success_metrics:
   - "Zero idempotency violations (same input -> same output)"
   - "Automatic alerts on every data validation failure"

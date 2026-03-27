@@ -42,6 +42,21 @@ deliverables:
   - "File scope overlap matrix"
   - "Deliverable-to-input DAG verification result"
   - "Critical/Warning issue list with recommended fixes"
+output_format:
+  report: "Markdown with 0-100 score, per-category breakdown, and issue table"
+  overlap_matrix: "Markdown table mapping agents to file scopes with conflict markers"
+example:
+  bad: |
+    # Team: 3 agents
+    @frontend → "Build UI and write API routes"
+    @backend → "Build API routes and deploy"
+    # Overlap: both touch API routes, no clear owner
+  good: |
+    # Team: 3 agents (Score: 88/100)
+    @frontend → "Build UI components in src/components/"
+    @backend → "Build API routes in src/api/"
+    @devops → "Deploy via CI/CD in .github/workflows/"
+    # Zero overlap, clear deliverable chain
 success_metrics:
   - "100% detection rate for file_scope overlaps"
   - "Zero broken deliverable chains after verification pass"
