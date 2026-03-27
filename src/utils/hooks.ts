@@ -92,18 +92,17 @@ Simple single-task requests: handle directly, no agents.
     return false;
   });
 
-  if (!hasInjectHook) {
-    // Deploy hook script
-    const scriptDest = getHookScriptDest();
-    fs.mkdirSync(path.dirname(scriptDest), { recursive: true });
+  // Always deploy hook script (even if hook entry already exists)
+  const scriptDest = getHookScriptDest();
+  fs.mkdirSync(path.dirname(scriptDest), { recursive: true });
 
-    const scriptSrc = getHookScriptSource();
-    if (fs.existsSync(scriptSrc)) {
-      fs.copyFileSync(scriptSrc, scriptDest);
-      fs.chmodSync(scriptDest, '755');
-    } else {
-      // Fallback: write inline script
-      const inlineScript = `#!/bin/bash
+  const scriptSrc = getHookScriptSource();
+  if (fs.existsSync(scriptSrc)) {
+    fs.copyFileSync(scriptSrc, scriptDest);
+    fs.chmodSync(scriptDest, '755');
+  } else {
+    // Fallback: write inline script
+    const inlineScript = `#!/bin/bash
 INPUT=$(cat)
 if command -v jq &>/dev/null; then
   TOOL=$(echo "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)
@@ -113,9 +112,10 @@ else
 fi
 [ "$TOOL" != "Agent" ] && exit 0
 echo "$INPUT" | agentcrow inject 2>/dev/null`;
-      fs.writeFileSync(scriptDest, inlineScript, { mode: 0o755 });
-    }
+    fs.writeFileSync(scriptDest, inlineScript, { mode: 0o755 });
+  }
 
+  if (!hasInjectHook) {
     hooksObj.PreToolUse.push({
       matcher: 'Agent',
       hooks: [{
