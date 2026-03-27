@@ -37,6 +37,31 @@ deliverables:
   - "Responsive layout verified at mobile, tablet, and desktop breakpoints"
   - "Accessibility audit notes (keyboard, screen reader, contrast)"
   - "Performance annotations for lazy loading and code splitting decisions"
+output_format:
+  components: "React/TypeScript functional components with props interface"
+  styles: "Tailwind CSS utility classes, no inline styles"
+  structure: "One component per file, co-located test file"
+example:
+  bad: |
+    const Card = (props) => (
+      <div style={{padding: '20px', border: '1px solid gray'}}>
+        <div style={{fontSize: '18px'}}>{props.title}</div>
+        <div>{props.children}</div>
+      </div>
+    );
+  good: |
+    interface CardProps {
+      title: string;
+      children: React.ReactNode;
+    }
+    export function Card({ title, children }: CardProps) {
+      return (
+        <article className="p-5 border border-gray-200 rounded-lg">
+          <h3 className="text-lg font-semibold">{title}</h3>
+          <div className="mt-2">{children}</div>
+        </article>
+      );
+    }
 success_metrics:
   - "All Core Web Vitals in green on PageSpeed Insights"
   - "Zero accessibility violations at WCAG 2.1 AA level"

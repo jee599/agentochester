@@ -138,6 +138,31 @@ function formatPersona(agent: AgentDefinition): string {
     lines.push('');
   }
 
+  if (agent.output_format && Object.keys(agent.output_format).length > 0) {
+    lines.push('## Output Format');
+    for (const [key, value] of Object.entries(agent.output_format)) {
+      lines.push(`- **${key}**: ${value}`);
+    }
+    lines.push('');
+  }
+
+  if (agent.example) {
+    lines.push('## Example');
+    if (agent.example.bad) {
+      lines.push('BAD:');
+      lines.push('```');
+      lines.push(agent.example.bad.trim());
+      lines.push('```');
+    }
+    if (agent.example.good) {
+      lines.push('GOOD:');
+      lines.push('```');
+      lines.push(agent.example.good.trim());
+      lines.push('```');
+    }
+    lines.push('');
+  }
+
   lines.push('</AGENTCROW_PERSONA>');
   return lines.join('\n');
 }

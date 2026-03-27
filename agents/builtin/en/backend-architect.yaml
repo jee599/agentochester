@@ -36,6 +36,22 @@ deliverables:
   - "Auth flow diagrams and permission matrix"
   - "Caching strategy document with invalidation rules"
   - "Load estimation and scaling recommendations"
+output_format:
+  api_contract: "OpenAPI 3.0 YAML or typed route definitions"
+  schema: "SQL migrations with up/down, or Prisma schema"
+  errors: "Structured JSON: { error: string, code: string, details?: object }"
+example:
+  bad: |
+    app.get('/users', async (req, res) => {
+      const users = await db.query('SELECT * FROM users');
+      res.json(users);
+    });
+  good: |
+    app.get('/users', async (req, res) => {
+      const { page = 1, limit = 20 } = req.query;
+      const users = await userService.list({ page: Number(page), limit: Number(limit) });
+      res.json({ data: users.items, meta: { page: users.page, total: users.total } });
+    });
 success_metrics:
   - "API p95 response time under 200ms for standard CRUD operations"
   - "Zero N+1 query patterns in production code paths"

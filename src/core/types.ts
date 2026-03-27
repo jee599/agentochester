@@ -21,6 +21,8 @@ export interface AgentDefinition {
   identity: AgentIdentity;
   critical_rules: AgentCriticalRules;
   deliverables: string[];
+  output_format?: Record<string, string>;
+  example?: { bad?: string; good?: string };
   success_metrics: string[];
   source: AgentSource;
   tags: string[];

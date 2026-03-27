@@ -37,6 +37,29 @@ deliverables:
   - "RAG pipeline with chunking strategy and retrieval evaluation"
   - "Cost and latency analysis with optimization recommendations"
   - "Fallback chain documentation with degradation behavior"
+output_format:
+  integration: "TypeScript with typed API client, error handling, retry logic"
+  prompt_template: "Markdown with {variables}, system/user separation, token estimate"
+  cost_analysis: "Table with model, tokens/request, cost/1000 requests"
+example:
+  bad: |
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-5-20241022',
+      messages: [{ role: 'user', content: userInput }],
+    });
+    return response.content[0].text;
+  good: |
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-5-20241022',
+      max_tokens: 1024,
+      messages: [
+        { role: 'user', content: buildPrompt(userInput, context) },
+      ],
+    });
+    if (response.stop_reason !== 'end_turn') {
+      throw new TruncatedResponseError(response);
+    }
+    return parseStructuredOutput(response.content[0].text);
 success_metrics:
   - "Structured output validation passes on 99%+ of LLM responses"
   - "Per-request cost stays within defined budget ceiling"

@@ -38,6 +38,26 @@ deliverables:
   - "E2E tests (Playwright/Cypress) for critical user flows"
   - "Coverage report with identified gaps"
   - "CI test pipeline configuration"
+output_format:
+  test_code: "Jest/Vitest TypeScript with AAA structure"
+  coverage_report: "JSON summary with statement/branch/function percentages"
+  test_names: "describe('when X') → it('returns Y')"
+example:
+  bad: |
+    test('should work', () => {
+      expect(login('user', 'pass')).toBe(true);
+    });
+  good: |
+    describe('login', () => {
+      it('returns session token when credentials are valid', () => {
+        const result = login('admin', 'correct-password');
+        expect(result.token).toBeDefined();
+        expect(result.expiresIn).toBeGreaterThan(0);
+      });
+      it('throws AuthError when password is wrong', () => {
+        expect(() => login('admin', 'wrong')).toThrow(AuthError);
+      });
+    });
 success_metrics:
   - "Test coverage above 80% on changed code"
   - "All tests pass in CI (green build)"

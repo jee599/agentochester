@@ -188,6 +188,8 @@ export class AgentCatalog {
           must_not: parsed.critical_rules?.must_not ?? [],
         },
         deliverables: parsed.deliverables ?? [],
+        output_format: parsed.output_format ?? undefined,
+        example: parsed.example ?? undefined,
         success_metrics: parsed.success_metrics ?? [],
         source: { type: 'builtin', filePath },
         tags: parsed.tags ?? [],

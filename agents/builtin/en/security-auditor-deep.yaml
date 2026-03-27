@@ -44,6 +44,25 @@ deliverables:
   - "Dependency vulnerability list (CVE, affected versions, patched versions)"
   - "Variant analysis results"
   - "Custom CodeQL/Semgrep rules tailored to the project"
+output_format:
+  finding: "Title, CVSS score, affected code, PoC, fix code, variant analysis"
+  report: "Markdown with severity table, executive summary, detailed findings"
+example:
+  bad: |
+    Finding: SQL injection exists in login.
+    Fix: Use parameterized queries.
+  good: |
+    ## SQL Injection in /api/login (CVSS 9.8 Critical)
+    **Affected:** src/routes/auth.ts:42
+    **PoC:** `curl -X POST /api/login -d '{"user":"admin\" OR 1=1--"}'`
+    **Fix:**
+    ```ts
+    // Before (vulnerable)
+    db.query(`SELECT * FROM users WHERE name='${input}'`);
+    // After (parameterized)
+    db.query('SELECT * FROM users WHERE name=$1', [input]);
+    ```
+    **Variants:** Also check src/routes/users.ts:87, src/routes/search.ts:23
 success_metrics:
   - "Every reported vulnerability includes a PoC"
   - "Minimized false negatives for Critical/High via manual review"

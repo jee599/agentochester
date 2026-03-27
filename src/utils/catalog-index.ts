@@ -39,6 +39,8 @@ export function buildCatalogIndex(catalog: AgentCatalog): void {
             must_not: parsed.critical_rules?.must_not ?? [],
           },
           deliverables: parsed.deliverables ?? [],
+          output_format: parsed.output_format ?? undefined,
+          example: parsed.example ?? undefined,
           success_metrics: parsed.success_metrics ?? [],
           source: { type: 'builtin', filePath: entry.filePath },
           tags: parsed.tags ?? [],
