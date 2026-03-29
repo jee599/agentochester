@@ -5,90 +5,64 @@
 </h1>
 
 <h3 align="center">
-  Claudeが生成するすべてのサブエージェントに、専門家ペルソナを自動注入。<br>
-  150エージェント。Hook強制。設定不要。
+  Claudeのサブエージェントは空白で生まれる。AgentCrowが専門家にする。<br>
+  154エージェント。Hook強制。設定不要。
 </h3>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/agentcrow"><img src="https://img.shields.io/npm/v/agentcrow?style=flat-square&color=violet" alt="npm" /></a>
-  <img src="https://img.shields.io/badge/agents-150-brightgreen?style=flat-square" alt="Agents" />
-  <img src="https://img.shields.io/badge/tests-187_passing-brightgreen?style=flat-square" alt="Tests" />
+  <img src="https://img.shields.io/badge/agents-154-brightgreen?style=flat-square" alt="Agents" />
+  <img src="https://img.shields.io/badge/tests-190_passing-brightgreen?style=flat-square" alt="Tests" />
   <img src="https://img.shields.io/badge/hook-PreToolUse-blue?style=flat-square" alt="Hook" />
   <a href="LICENSE"><img src="https://img.shields.io/github/license/jee599/agentcrow?style=flat-square" alt="License" /></a>
 </p>
 
 <p align="center">
-  <a href="#the-problem">課題</a> •
-  <a href="#quickstart">クイックスタート</a> •
-  <a href="#how-it-works">仕組み</a> •
-  <a href="#commands">コマンド</a> •
-  <a href="#agents">エージェント</a> •
-  <a href="README.ko.md">한국어</a> •
   <a href="../README.md">English</a> •
+  <a href="README.ko.md">한국어</a> •
+  日本語 •
   <a href="README.zh.md">中文</a>
 </p>
 
 ---
 
-<a id="the-problem"></a>
 ## 課題
 
-Claude Codeがサブエージェントを生成すると、それは**何の専門性もない汎用エージェント**になる。専門知識なし、ルールなし、個性なし。依頼されたことは実行するが、*専門家がやるようには*やらない。
+Claude Codeがサブエージェントを生成すると、それは**何の専門性もない汎用エージェント**になる。専門知識なし、ルールなし、個性なし。
 
 ```
-あなた: 「認証・テスト・ドキュメント付きのSaaSを作って」
+You: "Build auth + tests + docs"
 
-Claudeが4つのサブエージェントを生成:
-  Agent 1: (空白) → 認証コードを書く
-  Agent 2: (空白) → テストを書く
-  Agent 3: (空白) → ドキュメントを書く
-  Agent 4: (空白) → UIを書く
+Without AgentCrow:
+  Agent 1: (blank) → writes auth       ← no coding standards
+  Agent 2: (blank) → writes tests      ← no coverage rules
+  Agent 3: (blank) → writes docs       ← no style guide
 
-  = 汎用的なアウトプット
-  = コーディング規約の適用なし
-  = 専門知識の活用なし
+With AgentCrow:
+  Agent 1: → 🏗️ Backend Architect injected
+            "Paranoid about data integrity. Never ships without migrations."
+  Agent 2: → 🧪 QA Engineer injected
+            "Treats 'it probably works' as a personal insult."
+  Agent 3: → 📝 Technical Writer injected
+            "Every sentence earns its place."
 ```
 
-AgentCrowがこれを解決する。**PreToolUse Hook**がすべてのAgent tool呼び出しをインターセプトし、サブエージェントが起動する前に適切な専門家ペルソナを注入する：
-
-```
-あなた: 同じプロンプト
-
-AgentCrowが各Agent tool呼び出しをインターセプト:
-  Agent 1: → 🏗️ バックエンドアーキテクトのペルソナを注入
-            「データ整合性に徹底的にこだわる。マイグレーションなしでは絶対にリリースしない。」
-  Agent 2: → 🧪 QAエンジニアのペルソナを注入
-            「"多分動く"は個人的侮辱として扱う。」
-  Agent 3: → 📝 テクニカルライターのペルソナを注入
-            「すべての文が存在意義を持つ。」
-  Agent 4: → 🖥️ フロントエンド開発者のペルソナを注入
-            「継承より合成、常に。」
-
-  = 専門家品質のアウトプット
-  = MUST/MUST NOTルールの適用
-  = 具体的な成果物の定義
-```
-
-**これを実現するツールは他にない。** ECC（100K⭐）にも、agency-agents（59K⭐）にも、wshobson（31K⭐）にもない。AgentCrowはHookレベルでペルソナ注入を強制する唯一のツールだ。
+**PreToolUse Hook**がすべてのAgent tool呼び出しをインターセプトし、サブエージェントが起動する前に適切な専門家ペルソナを自動注入する。手動選択不要。プロンプトエンジニアリング不要。
 
 ---
 
-<a id="quickstart"></a>
-## ⚡ クイックスタート
+<a id="install"></a>
+## ⚡ インストール
 
 ```bash
 npm i -g agentcrow
 agentcrow init --global
 ```
 
-以上。たった2つのコマンド。これ以降：
-- 複雑なプロンプト → Claudeがタスクに分解 → サブエージェントを生成
-- すべてのサブエージェント → AgentCrowのHookがインターセプト → 専門家ペルソナを注入
-- サブエージェントは汎用ではなく専門家として動作する
+2つのコマンド。これ以降、すべてのサブエージェントに専門家ペルソナが注入される。
 
 > [!TIP]
-> 英語ユーザー: `agentcrow init --global --lang en`
-> 한국어: `agentcrow init --global --lang ko`
+> 確認: `agentcrow status` で両方のHook（SessionStart + PreToolUse）がアクティブであることを確認。
 
 ---
 
@@ -96,43 +70,36 @@ agentcrow init --global
 ## ⚙️ 仕組み
 
 ```
-あなたのプロンプト: 「認証・テスト・ドキュメント付きのTodoアプリを作って」
+  You: "Build auth system with JWT, add tests"
                     │
                     ▼
-  Claudeが4つのタスクに分解
-                    │
-                    ▼
-  ClaudeがAgent toolを呼び出す:
-    { name: "qa_engineer", prompt: "E2Eテストを書いて" }
+  Claude calls Agent tool:
+    { name: "qa_engineer", prompt: "Write E2E tests" }
                     │
                     ▼
   ┌─────────────────────────────────────────┐
-  │  PreToolUse Hook（自動）                │
+  │  PreToolUse Hook (automatic)            │
   │                                         │
   │  agentcrow-inject.sh → agentcrow inject │
-  │    1. catalog-index.jsonをロード（~5ms）│
-  │    2. "qa_engineer" → 完全一致          │
-  │    3. QAエンジニアのペルソナをロード     │
-  │    4. updatedInputでプロンプトに前置    │
+  │    1. Load catalog-index.json  (~5ms)   │
+  │    2. Match "qa_engineer"      (exact)  │
+  │    3. Load QA Engineer persona          │
+  │    4. Prepend to prompt                 │
   └─────────────────────────────────────────┘
                     │
                     ▼
-  フルペルソナ付きでサブエージェントが起動:
+  Subagent spawns with full persona:
     <AGENTCROW_PERSONA>
     You are QA Engineer — test specialist
-    ## Identity
-    Treats 'it probably works' as a personal insult.
     ## MUST
     - Test every public function
     - Cover happy path, edge case, error path
     ## MUST NOT
     - Never test implementation details
     - Never use sleep for async waits
-    ## Deliverables
-    - Unit tests, Integration tests, E2E tests
     </AGENTCROW_PERSONA>
 
-    Write E2E tests    ← 元のプロンプトは保持
+    Write E2E tests    ← original prompt preserved
 ```
 
 ### 3つのマッチング戦略
@@ -141,11 +108,9 @@ agentcrow init --global
 |--------|------|-----|
 | 1 | 名前の完全一致 | `name: "qa_engineer"` → QA Engineer |
 | 2 | サブエージェントタイプ一致 | `subagent_type: "security_auditor"` → Security Auditor |
-| 3 | キーワード＋同義語ファジー | `"kubernetes helm deploy"` → DevOps Automator |
+| 3 | キーワード＋同義語ファジー | `"kubernetes deploy"` → DevOps Automator |
 
-ファジーマッチングは**同義語マップ**（50以上のエントリ）と**履歴学習**を使用 — よく使うエージェントのマッチング優先度が上がる。
-
-ビルトインClaudeタイプ（`Explore`、`Plan`、`general-purpose`）はインターセプトされない。
+ファジーマッチングは**同義語マップ**（50以上のエントリ）と**履歴学習**を使用 — よく使うエージェントの優先度が上がる。
 
 ---
 
@@ -157,15 +122,14 @@ agentcrow init --global
 
 **❌ AgentCrowなし**
 ```
-Claudeが空白のサブエージェントを生成:
-  prompt: "認証のテストを書いて"
+Claude spawns blank subagent:
+  prompt: "Write tests for auth"
 
-  結果:
-  - 汎用的なテストファイル
-  - AAA構造なし
-  - エッジケースをスキップ
-  - カバレッジ目標なし
-  - 15分かけて凡庸なアウトプット
+  Result:
+  - Generic test file
+  - No AAA structure
+  - Skipped edge cases
+  - No coverage targets
 ```
 
 </td>
@@ -173,24 +137,64 @@ Claudeが空白のサブエージェントを生成:
 
 **✅ AgentCrowあり**
 ```
-AgentCrowがQAペルソナを注入:
-  prompt: <AGENTCROW_PERSONA>
-    MUST: すべてのpublic関数をテスト
-    MUST NOT: 実装の詳細をテストしない
-    Deliverables: ユニット + インテグレーション + E2E
-  </AGENTCROW_PERSONA>
-  認証のテストを書いて
+QA Engineer persona injected:
+  MUST: test every public function
+  MUST NOT: test implementation details
 
-  結果:
-  - AAA構造のテスト
-  - ハッピーパス + エッジ + エラーをカバー
-  - カバレッジレポート付き
-  - CI設定を生成
+  Result:
+  - AAA-structured tests
+  - Happy path + edge + error covered
+  - Coverage report included
+  - CI config generated
 ```
 
 </td>
 </tr>
 </table>
+
+---
+
+<a id="agents"></a>
+## 🤖 154エージェント
+
+### 14のハンドクラフトビルトインエージェント
+
+各ビルトインエージェントは、個性、MUST/MUST NOTルール、成果物、成功指標を持つ。
+
+| エージェント | 専門分野 | 主要ルール |
+|-------------|---------|-----------|
+| **Backend Architect** | API、認証、データベース、キャッシュ | "Never ship without migrations" |
+| **Frontend Developer** | React/Next.js、Core Web Vitals | "Composition over inheritance, always" |
+| **QA Engineer** | ユニット/インテグレーション/E2Eテスト、カバレッジ | "Untested code is broken code" |
+| **Security Auditor** | OWASP、CVSS、全発見事項にPoC | "Never says 'the code is secure'" |
+| **UI Designer** | デザインシステム、トークン、スペーシング | "If it's not in the token system, it doesn't exist" |
+| **DevOps Automator** | CI/CD、Docker、K8s、シークレット管理 | "No :latest tags in production" |
+| **AI Engineer** | LLM、RAG、プロンプト最適化 | "LLMs need guardrails" |
+| **Refactoring Specialist** | コードスメル、Fowlerカタログ | "Never refactor without tests" |
+| **Complexity Critic** | 循環的複雑度、YAGNI | "Never call something complex without proof" |
+| **Data Pipeline Engineer** | ETL、冪等性、スキーマ | "Idempotency is non-negotiable" |
+| **Technical Writer** | APIドキュメント、ガイド、README | "Every sentence earns its place" |
+| **Translator** | i18n、ロケールファイル、翻訳 | "Never translate code identifiers" |
+| **Compose Meta-Reviewer** | エージェント構成の監査 | "Block execution below score 70" |
+| **Unreal GAS Specialist** | GameplayAbilitySystem、UE5 | "No damage calc in GameplayAbilities" |
+
+### 140の外部エージェント（13部門）
+
+| 部門 | 数 | 例 |
+|------|---:|-----|
+| Engineering | 24 | Data Engineer, Mobile Builder, Security Engineer |
+| Marketing | 25 | SEO, TikTok, LinkedIn, Douyin Strategist |
+| Game Dev | 20 | Godot, Unity, Unreal specialists |
+| Design | 8 | Brand Guardian, UX Architect, Visual Storyteller |
+| Testing | 8 | Accessibility, API, Performance |
+| Sales | 7 | Account, Deal, Outbound Strategist |
+| Support | 6 | Analytics, Finance, Customer Support |
+| Project Mgmt | 6 | Project Shepherd, Jira Steward |
+| Academic | 5 | Anthropologist, Historian, Psychologist |
+| Spatial Computing | 4 | XR, Metal, WebXR |
+| Specialized | 25 | MCP Builder, Workflow Architect, Data Extraction |
+| Product | 1 | Behavioral Nudge Engine |
+| Strategy | 1 | NEXUS Handoff Templates |
 
 ---
 
@@ -209,7 +213,7 @@ agentcrow update                # 最新エージェントの取得
 agentcrow uninstall             # クリーンな削除
 
 # エージェント管理
-agentcrow agents                # 全150エージェントの一覧
+agentcrow agents                # 全154エージェントの一覧
 agentcrow agents search <query> # キーワード検索
 agentcrow add <path|url>        # カスタムエージェントの追加（.md/.yaml）
 agentcrow remove <role>         # カスタムエージェントの削除
@@ -225,74 +229,22 @@ agentcrow serve                 # MCPサーバーの起動（stdio）
 
 ---
 
-<a id="agents"></a>
-## 🤖 150エージェント
-
-### 14のハンドクラフトビルトインエージェント
-
-各ビルトインエージェントは、個性、コミュニケーションスタイル、思考モデル、MUST/MUST NOTルール、成果物、成功指標を持つ。
-
-| エージェント | 機能 | 主要ルール |
-|-------------|------|-----------|
-| **Frontend Developer** | React/Next.js、Core Web Vitals、WCAG AA | 「継承より合成、常に」 |
-| **Backend Architect** | API設計、認証、データベース、キャッシュ | 「マイグレーションなしでリリースしない」 |
-| **QA Engineer** | ユニット/インテグレーション/E2Eテスト、カバレッジ | 「テストされていないコードは壊れたコード」 |
-| **Security Auditor** | OWASP、CVSSスコアリング、全発見事項にPoC | 「"コードは安全"とは決して言わない」 |
-| **UI Designer** | デザインシステム、トークン、スペーシングスケール | 「トークンシステムにないものは存在しない」 |
-| **DevOps Automator** | CI/CD、Docker、K8s、シークレット管理 | 「本番環境で:latestタグは禁止」 |
-| **AI Engineer** | LLM統合、RAG、プロンプト最適化 | 「LLMはガードレールが必要な信頼性の低いコンポーネント」 |
-| **Refactoring Specialist** | コードスメル、Fowlerカタログ、ストラングラーフィグ | 「テストなしにリファクタリングしない」 |
-| **Complexity Critic** | 循環的複雑度、YAGNI適用 | 「証拠なしに複雑とは呼ばない」 |
-| **Data Pipeline Engineer** | ETL、冪等性、スキーママイグレーション | 「冪等性は交渉の余地なし」 |
-| **Technical Writer** | APIドキュメント、ガイド、README | 「すべての文が存在意義を持つ」 |
-| **Translator** | i18n、ロケールファイル、技術翻訳 | 「コード識別子は翻訳しない」 |
-| **Compose Meta-Reviewer** | エージェントチーム構成の監査 | 「スコア70未満で実行をブロック」 |
-| **Unreal GAS Specialist** | GameplayAbilitySystem、UE5 C++ | 「GameplayAbilitiesでダメージ計算しない」 |
-
-### 136の外部エージェント（13部門）
-
-[agency-agents](https://github.com/msitarzewski/agency-agents)から: engineering、game-dev、design、marketing、testing、sales、support、product、strategy、spatial-computing、academic、paid-media、project-management。
-
----
-
-## ➕ カスタムエージェント
-
-```bash
-agentcrow add ./my-agent.yaml           # ローカルファイル
-agentcrow add https://example.com/a.md  # URL
-agentcrow remove my_agent               # 削除（カスタムのみ）
-```
-
----
-
-## 🔌 MCPサーバー（オプション）
-
-```bash
-agentcrow init --global --mcp
-```
-
-Claude Codeに3つのツールを追加: `agentcrow_match`、`agentcrow_search`、`agentcrow_list`。Claudeがエージェントカタログをプログラム的にクエリできる。
-
----
-
 ## 📊 統計
 
 ```bash
-agentcrow stats
-```
+$ agentcrow stats
 
-```
   🐦 AgentCrow Stats
 
   Match Quality
-    exact  38 (81%)    ← 名前が直接一致
-    fuzzy   7 (15%)    ← キーワード + 同義語で一致
-    none    2 (4%)     ← 一致なし、パススルー
+    exact  106 (55%)   ← 名前が直接一致
+    fuzzy   87 (45%)   ← キーワード + 同義語で一致
+    none     0 (0%)    ← 一致なし、パススルー
 
   Top Agents
-    frontend_developer     12 ████████████
-    qa_engineer             8 ████████
-    backend_architect       6 ██████
+    qa_engineer            89 ████████████████████
+    frontend_developer     23 █████
+    backend_architect      15 ███
 ```
 
 ---
@@ -304,9 +256,12 @@ agentcrow stats
 | Hookレイテンシ | Agent tool呼び出しあたり**50ms未満** |
 | トークンオーバーヘッド | ペルソナ注入あたり**約350トークン** |
 | フェイルオープン | インデックスまたはバイナリ欠損時 → パススルー（破損なし） |
-| Claudeビルトイン | `Explore`、`Plan`、`general-purpose` → インターセプトしない |
-| シンプルなプロンプト | エージェントのディスパッチなし、オーバーヘッドなし |
+| ビルトインタイプ | `Explore`、`Plan`、`general-purpose` → インターセプトしない |
+| シンプルなプロンプト | エージェントのディスパッチなし、オーバーヘッドゼロ |
 | `agentcrow off` | 完全無効化、すべてバックアップ |
+
+> [!IMPORTANT]
+> AgentCrowはClaudeをブロックしない。何かが失敗しても、元のプロンプトがそのまま通過する。
 
 ---
 
@@ -315,17 +270,60 @@ agentcrow stats
 ```
 ~/.agentcrow/
   ├── agents/
-  │   ├── builtin/          14 YAML（ハンドクラフト）
-  │   ├── external/         136 MD（agency-agents）
-  │   └── md/               150 統合 .md ファイル
-  ├── catalog-index.json    事前構築で5ms未満のルックアップ
-  └── history.json          ディスパッチ記録（直近1000件）
+  │   ├── builtin/          14 YAML (hand-crafted)
+  │   ├── external/         140 MD (agency-agents + community)
+  │   └── md/               154 unified .md files
+  ├── catalog-index.json    Pre-built for <5ms lookup
+  └── history.json          Dispatch records (last 1000)
 
 ~/.claude/
   ├── settings.json         SessionStart + PreToolUse hooks
-  └── hooks/
-      └── agentcrow-inject.sh
+  ├── hooks/
+  │   └── agentcrow-inject.sh
+  └── agents/
+      └── INDEX.md          Agent catalog
 ```
+
+---
+
+## ➕ カスタムエージェント
+
+```bash
+agentcrow add ./my-agent.yaml           # ローカルファイル
+agentcrow add https://example.com/a.md  # URL
+agentcrow remove my_agent               # 削除（カスタムのみ）
+```
+
+エージェント形式（`.md` または `.yaml`）:
+
+```markdown
+# My Custom Agent
+
+> One-line mission statement
+
+**Role:** my_custom_agent
+
+## Identity
+How this agent thinks and works.
+
+## MUST
+- Rule 1
+- Rule 2
+
+## MUST NOT
+- Anti-pattern 1
+- Anti-pattern 2
+```
+
+---
+
+## 🔌 MCPサーバー（オプション）
+
+```bash
+agentcrow init --global --mcp
+```
+
+Claude Codeに3つのツールを追加: `agentcrow_match`、`agentcrow_search`、`agentcrow_list`。
 
 ---
 
@@ -333,7 +331,7 @@ agentcrow stats
 
 ```bash
 git clone https://github.com/jee599/agentcrow.git
-cd agentcrow && npm install && npm test  # 187 tests
+cd agentcrow && npm install && npm test  # 190 tests
 ```
 
 ## 📜 ライセンス

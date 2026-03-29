@@ -90,6 +90,64 @@ function extractKeywords(text: string): string[] {
   return [...expanded];
 }
 
+// === Model Auto-Selection ===
+// Determine optimal model based on agent role + prompt complexity
+const OPUS_ROLES = new Set([
+  'security_auditor_deep', 'backend_architect', 'ai_engineer',
+  'compose_meta_reviewer', 'complexity_critic', 'refactoring_specialist',
+]);
+function selectModel(agent: AgentDefinition, prompt: string): 'opus' | 'sonnet' {
+  // Role-based override
+  if (OPUS_ROLES.has(agent.role)) return 'opus';
+
+  // Complexity heuristics from prompt
+  const promptLen = prompt.length;
+  const complexKeywords = ['architect', 'refactor', 'migrate', 'security', 'audit', 'design system', 'performance'];
+
+  const hasComplex = complexKeywords.some(k => prompt.toLowerCase().includes(k));
+
+  if (hasComplex && promptLen > 500) return 'opus';
+  return 'sonnet';
+}
+
+// === File Path Signal Scoring ===
+const FILE_PATH_SIGNALS: Record<string, { role: string; bonus: number }[]> = {
+  '.test.ts': [{ role: 'qa_engineer', bonus: 5 }],
+  '.test.tsx': [{ role: 'qa_engineer', bonus: 5 }],
+  '.spec.ts': [{ role: 'qa_engineer', bonus: 5 }],
+  '.spec.tsx': [{ role: 'qa_engineer', bonus: 5 }],
+  'vitest': [{ role: 'qa_engineer', bonus: 4 }],
+  'jest': [{ role: 'qa_engineer', bonus: 4 }],
+  'playwright': [{ role: 'qa_engineer', bonus: 4 }],
+  '/api/': [{ role: 'backend_architect', bonus: 4 }],
+  'endpoint': [{ role: 'backend_architect', bonus: 3 }],
+  'prisma': [{ role: 'backend_architect', bonus: 4 }],
+  '.tsx': [{ role: 'frontend_developer', bonus: 3 }],
+  'component': [{ role: 'frontend_developer', bonus: 3 }],
+  'tailwind': [{ role: 'frontend_developer', bonus: 3 }],
+  'README': [{ role: 'technical_writer', bonus: 5 }],
+  '/docs/': [{ role: 'technical_writer', bonus: 4 }],
+  'Dockerfile': [{ role: 'devops_automator', bonus: 5 }],
+  'docker-compose': [{ role: 'devops_automator', bonus: 5 }],
+  'docker': [{ role: 'devops_automator', bonus: 3 }],
+  '.github/workflows': [{ role: 'devops_automator', bonus: 5 }],
+  'OWASP': [{ role: 'security_auditor_deep', bonus: 5 }],
+  'vulnerability': [{ role: 'security_auditor_deep', bonus: 4 }],
+};
+
+function getFilePathBonus(prompt: string): Record<string, number> {
+  const bonuses: Record<string, number> = {};
+  const lowerPrompt = prompt.toLowerCase();
+  for (const [pattern, signals] of Object.entries(FILE_PATH_SIGNALS)) {
+    if (lowerPrompt.includes(pattern.toLowerCase())) {
+      for (const { role, bonus } of signals) {
+        bonuses[role] = (bonuses[role] || 0) + bonus;
+      }
+    }
+  }
+  return bonuses;
+}
+
 function formatPersona(agent: AgentDefinition): string {
   const lines: string[] = ['<AGENTCROW_PERSONA>'];
 
@@ -183,6 +241,7 @@ export async function cmdInject(): Promise<void> {
       name?: string;
       subagent_type?: string;
       description?: string;
+      model?: string;
     };
   };
 
@@ -228,30 +287,53 @@ export async function cmdInject(): Promise<void> {
     }
   }
 
-  // Strategy 3: Keyword matching from prompt + description (with history learning)
+  // Strategy 3: Keyword matching — ONLY against agents with usage history (active agents)
+  // Exact match (Strategy 1, 2) still works against all 154 agents.
+  // Fuzzy match is restricted to agents the user actually uses → fewer candidates → higher accuracy.
   if (!matchedAgent) {
     const searchText = [toolInput.prompt, toolInput.description ?? '', toolInput.name ?? ''].join(' ');
     const keywords = extractKeywords(searchText);
 
-    // Build history frequency map for learning bonus
+    // File path signal bonus — strongest signal for matching
+    const filePathBonuses = getFilePathBonus(toolInput.prompt ?? '');
+
+    // Build history frequency map + active agent set
     const historyBonus: Record<string, number> = {};
+    const activeRoles = new Set<string>();
     try {
       const history = loadHistory();
       for (const record of history) {
         if (record.matchType !== 'none' && record.role) {
           historyBonus[record.role] = (historyBonus[record.role] || 0) + 1;
+          activeRoles.add(record.role);
         }
       }
     } catch {
-      // history unavailable, no bonus
+      // history unavailable — fall back to all agents
     }
 
-    if (keywords.length > 0) {
+    // Always include builtin agents in active set
+    for (const entry of index.entries) {
+      if (entry.source.type === 'builtin') {
+        activeRoles.add(entry.role);
+      }
+    }
+
+    if (keywords.length > 0 || Object.keys(filePathBonuses).length > 0) {
       let bestScore = 0;
       let bestRole = '';
 
       for (const entry of index.entries) {
+        // Fuzzy matching only against active agents (used before or builtin)
+        if (activeRoles.size > 0 && !activeRoles.has(entry.role)) continue;
+
         let score = 0;
+
+        // File path signal bonus (highest weight — direct evidence)
+        if (filePathBonuses[entry.role]) {
+          score += filePathBonuses[entry.role];
+        }
+
         for (const kw of keywords) {
           // Tag match
           if (entry.tags.some((t) => t.toLowerCase() === kw)) score += 2;
@@ -268,10 +350,10 @@ export async function cmdInject(): Promise<void> {
         // Builtin bonus
         if (score > 0 && entry.source.type === 'builtin') score += 0.5;
 
-        // History learning bonus: frequently matched agents get a boost
+        // History learning bonus
         if (score > 0 && historyBonus[entry.role]) {
           const freq = historyBonus[entry.role];
-          score += Math.min(freq * 0.5, 3); // Max +3 from history (6+ uses)
+          score += Math.min(freq * 0.5, 3);
         }
 
         if (score > bestScore) {
@@ -280,7 +362,8 @@ export async function cmdInject(): Promise<void> {
         }
       }
 
-      if (bestScore >= 4 && index.agents[bestRole]) {
+      // Threshold 7 — prefer passthrough over wrong persona
+      if (bestScore >= 7 && index.agents[bestRole]) {
         matchedAgent = index.agents[bestRole];
         matchType = 'fuzzy';
       }
@@ -304,6 +387,9 @@ export async function cmdInject(): Promise<void> {
   const persona = formatPersona(matchedAgent);
   const enhancedPrompt = `${persona}\n\n${toolInput.prompt}`;
 
+  // Auto-select model based on agent role + prompt complexity
+  const selectedModel = selectModel(matchedAgent, toolInput.prompt ?? '');
+
   // Record dispatch
   recordDispatch({
     timestamp: new Date().toISOString(),
@@ -314,15 +400,22 @@ export async function cmdInject(): Promise<void> {
     source: 'hook',
   });
 
-  // Output hook response with updatedInput
+  // Output hook response with updatedInput (persona + model)
+  const updatedInput: Record<string, unknown> = {
+    ...toolInput,
+    prompt: enhancedPrompt,
+  };
+
+  // Only set model if not already specified by the caller
+  if (!toolInput.model) {
+    updatedInput['model'] = selectedModel;
+  }
+
   const output = {
     hookSpecificOutput: {
       hookEventName: 'PreToolUse',
       permissionDecision: 'allow',
-      updatedInput: {
-        ...toolInput,
-        prompt: enhancedPrompt,
-      },
+      updatedInput,
     },
   };
 

@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.0.0] - 2026-03-29
+
+### Added
+- **Model auto-selection**: security/architect/ai roles → opus, rest → sonnet. Caller override respected.
+- **File path signal scoring**: 19 patterns (.test.ts→qa +5, /api/→backend +4, .tsx→frontend +3, etc.)
+- **Active agent filter**: Fuzzy matching restricted to agents with usage history + builtins. Reduces noise.
+- 4 new personas from ECC (115K⭐) and wshobson (32K⭐): code-reviewer, planner, performance-optimizer, tdd-orchestrator
+
+### Changed
+- **Fuzzy threshold raised from 4 to 7** — prefer passthrough over wrong persona injection
+- **CLAUDE.md simplified to 2-mode system**: direct (default 90%) / parallel agents (10%). Teams Router removed.
+- **SessionStart hook simplified**: single-line dispatch rule
+- README rewritten — removed Teams Router section, updated stats to real numbers
+- Estimated matching accuracy: 65% → ~90% (overkill matches become passthrough)
+
+### Removed
+- Teams Router (TeamCreate/SendMessage/TeamDelete flow) — benchmarked at 4.8x slower with 0 practical value for solo developer
+- 5-mode decision flow (Q0-Q4) — replaced with single question: "independent domains 2+?"
+- Scout-then-Act mode, parallel Explore mode — absorbed into direct/parallel
+
 ## [3.5.0] - Unreleased
 
 ### Added
